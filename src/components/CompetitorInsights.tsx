@@ -202,11 +202,10 @@ export default function CompetitorInsights() {
             </div>
 
             {/* Card Body - Markdown Content */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto prose prose-sm max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={markdownComponents}
-                className="prose prose-sm max-w-none"
               >
                 {competitor.analysis_text}
               </ReactMarkdown>

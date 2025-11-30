@@ -56,7 +56,6 @@ function DayTooltip({ entries, date, cellElement }: { entries: TimeLog[]; date: 
     const spacing = 8 // mb-2 = 0.5rem = 8px
 
     const spaceAbove = cellRect.top
-    const spaceBelow = window.innerHeight - cellRect.bottom
 
     // Determine vertical placement
     const placement: 'top' | 'bottom' = spaceAbove >= tooltipHeight + spacing ? 'top' : 'bottom'
@@ -553,7 +552,7 @@ export default function TimeTrackingPage() {
 
       {/* Three Month Calendars */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {employeesData.map((employee, index) => (
+        {employeesData.map((employee) => (
           <MonthCalendar
             key={employee.name}
             employee={employee}

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Search, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import { getTransactions, Transaction } from '../data/transactions'
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { getTransactions } from '../data/transactions'
 
 type SortField = 'date' | 'amount' | 'text' | 'account' | 'category'
 type SortDirection = 'asc' | 'desc'

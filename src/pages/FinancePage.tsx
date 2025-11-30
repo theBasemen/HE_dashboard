@@ -45,7 +45,7 @@ export default function FinancePage() {
     const result: LiquidityDataPoint[] = []
     let monthsSinceStart = 0
 
-    projection.forEach((point, index) => {
+    projection.forEach((point) => {
       // Check if this month is on or after the hiring start date
       const pointDate = point.date
       const isAfterHiringStart = pointDate >= HIRING_START_DATE
