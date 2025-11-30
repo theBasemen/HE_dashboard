@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   AreaChart,
   Area,
@@ -24,6 +24,9 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  Droplet,
+  Heart,
+  Download,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -57,6 +60,26 @@ interface CompetitorAnalysis {
   keyword: string
   analysis_text: string
   top_competitor_1: string | null
+}
+
+interface PagePerformance {
+  id: number
+  created_at: string
+  url: string
+  page_name?: string
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+}
+
+interface PageHealthStatus {
+  status: 'critical' | 'warning' | 'healthy'
+  icon: React.ReactNode
+  label: string
+  color: string
+  bgColor: string
+  tooltip: string
 }
 
 // Custom hook to fetch SEO data
@@ -129,6 +152,410 @@ function formatDate(dateString: string): string {
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
+// Calculate health status for a page
+function getHealthStatus(page: PagePerformance): PageHealthStatus {
+  if (page.impressions > 300 && page.ctr < 1.5) {
+    return {
+      status: 'critical',
+      icon: <Droplet className="h-4 w-4 text-red-600" />,
+      label: 'CRITICAL',
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      tooltip: `Høj synlighed (${page.impressions.toLocaleString('da-DK')} visninger) men lav CTR (${page.ctr.toFixed(2)}%). Siden får mange visninger men få klik, hvilket indikerer at titel/beskrivelse ikke matcher søgeintentionen.`,
+    }
+  } else if (page.impressions > 100 && page.ctr < 2.5) {
+    return {
+      status: 'warning',
+      icon: <AlertCircle className="h-4 w-4 text-yellow-600" />,
+      label: 'WARNING',
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50',
+      tooltip: `Moderat synlighed (${page.impressions.toLocaleString('da-DK')} visninger) men lav CTR (${page.ctr.toFixed(2)}%). Siden kunne forbedres for at konvertere flere visninger til klik.`,
+    }
+  } else {
+    return {
+      status: 'healthy',
+      icon: <CheckCircle2 className="h-4 w-4 text-green-600" />,
+      label: 'HEALTHY',
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      tooltip: `God performance med ${page.impressions.toLocaleString('da-DK')} visninger og ${page.ctr.toFixed(2)}% CTR. Siden konverterer godt fra visninger til klik.`,
+    }
+  }
+}
+
+// Tooltip component for status badges
+function StatusTooltip({ 
+  tooltip, 
+  children, 
+  badgeRef 
+}: { 
+  tooltip: string
+  children: React.ReactNode
+  badgeRef: React.RefObject<HTMLDivElement>
+}) {
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<{ placement: 'top' | 'bottom'; align: 'left' | 'center' | 'right' }>({ 
+    placement: 'top', 
+    align: 'center' 
+  })
+  const [showTooltip, setShowTooltip] = useState(false)
+
+  useEffect(() => {
+    if (!showTooltip || !badgeRef.current || !tooltipRef.current) return
+
+    const badgeRect = badgeRef.current.getBoundingClientRect()
+    const tooltipWidth = 256 // w-64 = 16rem = 256px
+    const tooltipHeight = tooltipRef.current.offsetHeight || 150
+    const spacing = 8 // mb-2 = 0.5rem = 8px
+
+    const spaceAbove = badgeRect.top
+
+    // Determine vertical placement
+    const placement: 'top' | 'bottom' = spaceAbove >= tooltipHeight + spacing ? 'top' : 'bottom'
+
+    // Determine horizontal alignment
+    let align: 'left' | 'center' | 'right' = 'center'
+    const centerX = badgeRect.left + badgeRect.width / 2
+    
+    if (centerX - tooltipWidth / 2 < 16) {
+      // Too close to left edge
+      align = 'left'
+    } else if (centerX + tooltipWidth / 2 > window.innerWidth - 16) {
+      // Too close to right edge
+      align = 'right'
+    }
+
+    setPosition({ placement, align })
+  }, [showTooltip, badgeRef, tooltip])
+
+  const placementClasses = position.placement === 'top' 
+    ? 'bottom-full mb-2' 
+    : 'top-full mt-2'
+  
+  const alignClasses = {
+    left: 'left-0',
+    center: 'left-1/2 transform -translate-x-1/2',
+    right: 'right-0'
+  }[position.align]
+
+  const arrowClasses = position.placement === 'top'
+    ? 'top-full left-1/2 transform -translate-x-1/2 -mt-1'
+    : 'bottom-full left-1/2 transform -translate-x-1/2 -mb-1'
+
+  const arrowRotation = position.placement === 'top' ? 'rotate-45' : '-rotate-45'
+
+  return (
+    <div
+      className="relative inline-block"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      {children}
+      {showTooltip && (
+        <div
+          ref={tooltipRef}
+          className={`absolute z-50 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl pointer-events-none whitespace-normal ${placementClasses} ${alignClasses}`}
+        >
+          <div>{tooltip}</div>
+          {/* Arrow */}
+          <div className={`absolute ${arrowClasses}`}>
+            <div className={`w-2 h-2 bg-gray-900 transform ${arrowRotation}`}></div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// PageHealthTable component
+function PageHealthTable() {
+  const [pages, setPages] = useState<PagePerformance[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<'status' | 'impressions'>('status')
+  const badgeRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+
+  useEffect(() => {
+    const fetchPagePerformance = async () => {
+      if (!supabase) {
+        setError('Supabase client not configured')
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Fetch last 1000 records ordered by created_at desc
+        const { data, error: fetchError } = await supabase
+          .from('page_performance')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1000)
+
+        if (fetchError) throw fetchError
+
+        // Filter to keep only the most recent entry for each unique URL
+        const urlMap = new Map<string, PagePerformance>()
+        data?.forEach((row: any) => {
+          const url = row.url || row.page_name || row.page_url || ''
+          if (url && !urlMap.has(url)) {
+            urlMap.set(url, {
+              id: row.id,
+              created_at: row.created_at,
+              url: url,
+              page_name: row.page_name || row.page_name || null,
+              clicks: Number(row.clicks || 0),
+              impressions: Number(row.impressions || 0),
+              ctr: Number(row.ctr || 0),
+              position: Number(row.position || row.avg_position || 0),
+            })
+          }
+        })
+
+        const uniquePages = Array.from(urlMap.values())
+        setPages(uniquePages)
+      } catch (err: any) {
+        console.error('Error fetching page performance:', err)
+        setError(err.message || 'Failed to fetch page performance data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPagePerformance()
+  }, [])
+
+  // Sort pages
+  const sortedPages = [...pages].sort((a, b) => {
+    const statusA = getHealthStatus(a)
+    const statusB = getHealthStatus(b)
+
+    if (sortBy === 'status') {
+      // Critical first, then warning, then healthy
+      const statusOrder = { critical: 0, warning: 1, healthy: 2 }
+      const orderDiff = statusOrder[statusA.status] - statusOrder[statusB.status]
+      if (orderDiff !== 0) return orderDiff
+      // If same status, sort by impressions desc
+      return b.impressions - a.impressions
+    } else {
+      // Sort by impressions desc
+      return b.impressions - a.impressions
+    }
+  })
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-12 bg-gray-100 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="flex items-center space-x-2">
+          <AlertCircle className="h-5 w-5 text-red-600" />
+          <p className="text-red-800 font-medium">Fejl ved indlæsning af data</p>
+        </div>
+        <p className="text-red-600 text-sm mt-1">{error}</p>
+      </div>
+    )
+  }
+
+  // Export to CSV function
+  const exportToCSV = () => {
+    // Create CSV headers
+    const headers = ['Status', 'Side', 'Visninger', 'Klik', 'CTR (%)', 'Ranking']
+    
+    // Create CSV rows
+    const rows = sortedPages.map((page) => {
+      const health = getHealthStatus(page)
+      const displayName = page.page_name || page.url || 'Ukendt side'
+      
+      return [
+        health.label,
+        displayName,
+        page.impressions.toLocaleString('da-DK'),
+        page.clicks.toLocaleString('da-DK'),
+        page.ctr.toFixed(2),
+        page.position > 0 ? page.position.toFixed(1) : '-',
+      ]
+    })
+    
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+    
+    // Create blob and download
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' }) // BOM for Excel compatibility
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    link.setAttribute('href', url)
+    link.setAttribute('download', `side-diagnose-${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <Heart className="h-5 w-5 text-primary-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Side-Diagnose</h2>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setSortBy('status')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              sortBy === 'status'
+                ? 'bg-primary-100 text-primary-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Sorter efter status
+          </button>
+          <button
+            onClick={() => setSortBy('impressions')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              sortBy === 'impressions'
+                ? 'bg-primary-100 text-primary-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Sorter efter trafik
+          </button>
+          <button
+            onClick={exportToCSV}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Eksporter CSV</span>
+          </button>
+        </div>
+      </div>
+
+      {sortedPages.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p className="text-sm">Ingen side-performance data tilgængelig.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Side
+                </th>
+                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Trafik
+                </th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  CTR
+                </th>
+                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Ranking
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {sortedPages.map((page) => {
+                const health = getHealthStatus(page)
+                const displayName = page.page_name || page.url || 'Ukendt side'
+
+                const setBadgeRef = (element: HTMLDivElement | null) => {
+                  if (element) {
+                    badgeRefs.current.set(page.id, element)
+                  } else {
+                    badgeRefs.current.delete(page.id)
+                  }
+                }
+
+                const getBadgeRef = () => {
+                  return { current: badgeRefs.current.get(page.id) || null }
+                }
+
+                return (
+                  <tr key={page.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4">
+                      <StatusTooltip 
+                        tooltip={health.tooltip} 
+                        badgeRef={getBadgeRef()}
+                      >
+                        <div
+                          ref={setBadgeRef}
+                          className={`inline-flex items-center space-x-1.5 px-2 py-1 rounded ${health.bgColor} cursor-help`}
+                        >
+                          {health.icon}
+                          <span className={`text-xs font-medium ${health.color}`}>{health.label}</span>
+                        </div>
+                      </StatusTooltip>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="text-sm font-medium text-gray-900 truncate max-w-xs" title={displayName}>
+                        {displayName}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="text-sm text-gray-900">
+                        <div className="font-medium">{page.impressions.toLocaleString('da-DK')}</div>
+                        <div className="text-xs text-gray-500">{page.clicks.toLocaleString('da-DK')} klik</div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center space-x-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-24">
+                          <div
+                            className={`h-2 rounded-full ${
+                              health.status === 'critical'
+                                ? 'bg-red-500'
+                                : health.status === 'warning'
+                                  ? 'bg-yellow-500'
+                                  : 'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min((page.ctr / 5) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium text-gray-900 min-w-[3rem]">
+                          {page.ctr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <span className="text-sm font-medium text-gray-900">
+                        {page.position > 0 ? page.position.toFixed(1) : '-'}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Calculate trend (compare latest vs previous)
 function calculateTrend(current: number, previous: number): {
   value: number
@@ -150,6 +577,7 @@ export default function SeoDashboard() {
   const { snapshots, tasks, competitors, loading, error, refetch } = useSeoData()
   const [refreshing, setRefreshing] = useState(false)
   const [expandedCompetitors, setExpandedCompetitors] = useState<Set<number>>(new Set())
+  const [activeTab, setActiveTab] = useState<'overview' | 'page-health'>('overview')
 
   // Get latest and previous snapshots for KPI calculations
   const latestSnapshot = snapshots[snapshots.length - 1]
@@ -248,6 +676,38 @@ export default function SeoDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">SEO & Trafik</h1>
         <p className="text-gray-600 mt-1">Overblik over SEO performance og trafikudvikling</p>
       </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'overview'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Oversigt
+          </button>
+          <button
+            onClick={() => setActiveTab('page-health')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'page-health'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            🏥 Side-Diagnose
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'page-health' ? (
+        <PageHealthTable />
+      ) : (
+        <>
 
       {/* KPI Section */}
       {kpis && (
@@ -579,6 +1039,8 @@ export default function SeoDashboard() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }
