@@ -306,20 +306,17 @@ function ContentHealthBadge({
   let bgColor = 'bg-green-50'
   let borderColor = 'border-green-200'
   let iconColor = 'text-green-600'
-  let textColor = 'text-green-900'
   let statusText = 'Optimal'
 
   if (isTooShort) {
     bgColor = 'bg-yellow-50'
     borderColor = 'border-yellow-200'
     iconColor = 'text-yellow-600'
-    textColor = 'text-yellow-900'
     statusText = 'For kort'
   } else if (isTooLong) {
     bgColor = 'bg-red-50'
     borderColor = 'border-red-200'
     iconColor = 'text-red-600'
-    textColor = 'text-red-900'
     statusText = 'For lang'
   }
 
