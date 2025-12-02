@@ -2,14 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import {
   AreaChart,
   Area,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
-  ReferenceLine,
 } from 'recharts'
 import {
   TrendingUp,
