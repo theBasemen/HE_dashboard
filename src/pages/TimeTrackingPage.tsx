@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Calendar, AlertCircle, User } from 'lucide-react'
+import { Clock, Calendar, AlertCircle, User, Plus, Building2, Briefcase, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface TimeLog {
@@ -27,6 +27,14 @@ interface EmployeeData {
   entriesByDate: EmployeeEntries // Detailed entries for tooltip
 }
 
+interface Project {
+  id: number
+  name: string
+  color: string | null
+  type: 'internal' | 'customer' | null
+  created_at: string
+}
+
 // Get days in month
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate()
@@ -43,7 +51,17 @@ function formatDate(year: number, month: number, day: number): string {
 }
 
 // Tooltip component for showing detailed entries
-function DayTooltip({ entries, date, cellElement }: { entries: TimeLog[]; date: string; cellElement: HTMLDivElement | null }) {
+function DayTooltip({ 
+  entries, 
+  date, 
+  cellElement,
+  onDeleteEntry 
+}: { 
+  entries: TimeLog[]
+  date: string
+  cellElement: HTMLDivElement | null
+  onDeleteEntry?: (entryId: number) => void
+}) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ placement: 'top' | 'bottom'; align: 'left' | 'center' | 'right' }>({ placement: 'top', align: 'center' })
 
@@ -99,14 +117,14 @@ function DayTooltip({ entries, date, cellElement }: { entries: TimeLog[]; date: 
   return (
     <div 
       ref={tooltipRef}
-      className={`absolute z-50 w-64 p-3 bg-gray-900 text-white rounded-lg shadow-xl pointer-events-none ${placementClasses} ${alignClasses}`}
+      className={`absolute z-50 w-64 p-3 bg-gray-900 text-white rounded-lg shadow-xl pointer-events-auto ${placementClasses} ${alignClasses}`}
     >
       <div className="text-xs font-semibold mb-2 border-b border-gray-700 pb-1">
         {new Date(date + 'T12:00:00').toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' })}
       </div>
       <div className="space-y-1.5 max-h-48 overflow-y-auto">
         {entries.map((entry) => (
-          <div key={entry.id} className="flex items-start justify-between text-xs">
+          <div key={entry.id} className="flex items-start justify-between text-xs group">
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-1.5">
                 {entry.project_color && (
@@ -125,8 +143,24 @@ function DayTooltip({ entries, date, cellElement }: { entries: TimeLog[]; date: 
                 </div>
               )}
             </div>
-            <div className="ml-2 font-semibold text-white flex-shrink-0">
-              {entry.hours.toFixed(1)}h
+            <div className="ml-2 flex items-center space-x-2 flex-shrink-0">
+              <span className="font-semibold text-white">
+                {entry.hours.toFixed(1)}h
+              </span>
+              {onDeleteEntry && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (confirm(`Er du sikker på, at du vil slette denne tidsregistrering (${entry.hours.toFixed(1)} timer)?`)) {
+                      onDeleteEntry(entry.id)
+                    }
+                  }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded text-red-400 hover:text-white"
+                  title="Slet tidsregistrering"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -144,7 +178,17 @@ function DayTooltip({ entries, date, cellElement }: { entries: TimeLog[]; date: 
 }
 
 // Month calendar component
-function MonthCalendar({ employee, year, month }: { employee: EmployeeData; year: number; month: number }) {
+function MonthCalendar({ 
+  employee, 
+  year, 
+  month,
+  onDeleteEntry 
+}: { 
+  employee: EmployeeData
+  year: number
+  month: number
+  onDeleteEntry?: (entryId: number) => void
+}) {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null)
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   
@@ -269,7 +313,14 @@ function MonthCalendar({ employee, year, month }: { employee: EmployeeData; year
                   </span>
                 )}
               </div>
-              {showTooltip && <DayTooltip entries={dayEntries} date={date} cellElement={cellRefs.current.get(date) || null} />}
+              {showTooltip && (
+                <DayTooltip 
+                  entries={dayEntries} 
+                  date={date} 
+                  cellElement={cellRefs.current.get(date) || null}
+                  onDeleteEntry={onDeleteEntry}
+                />
+              )}
             </div>
           )
         })}
@@ -283,6 +334,17 @@ export default function TimeTrackingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loadingProjects, setLoadingProjects] = useState(true)
+  const [showAddProject, setShowAddProject] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectType, setNewProjectType] = useState<'internal' | 'customer'>('internal')
+  const [newProjectColor, setNewProjectColor] = useState('#3b82f6')
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [editProjectName, setEditProjectName] = useState('')
+  const [editProjectType, setEditProjectType] = useState<'internal' | 'customer'>('internal')
+  const [editProjectColor, setEditProjectColor] = useState('#3b82f6')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Get current month/year
   const currentYear = currentDate.getFullYear()
@@ -321,6 +383,213 @@ export default function TimeTrackingPage() {
 
     fetchTimeEntries()
   }, [])
+
+  // Delete time entry handler
+  const handleDeleteEntry = async (entryId: number) => {
+    if (!supabase) return
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('he_time_logs')
+        .delete()
+        .eq('id', entryId)
+
+      if (deleteError) throw deleteError
+
+      // Refresh time entries
+      const { data: logsData, error: logsError } = await supabase
+        .from('he_time_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+
+      if (!logsError && logsData) {
+        setTimeEntries(logsData)
+      }
+    } catch (err: any) {
+      console.error('Error deleting time entry:', err)
+      alert('Fejl ved sletning af tidsregistrering: ' + err.message)
+    }
+  }
+
+  // Fetch projects
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (!supabase) {
+        setLoadingProjects(false)
+        return
+      }
+
+      try {
+        setLoadingProjects(true)
+        const { data, error: projectsError } = await supabase
+          .from('he_time_projects')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (projectsError) throw projectsError
+
+        setProjects(data || [])
+      } catch (err: any) {
+        console.error('Error fetching projects:', err)
+      } finally {
+        setLoadingProjects(false)
+      }
+    }
+
+    fetchProjects()
+  }, [])
+
+  // Add new project
+  const handleAddProject = async () => {
+    if (!newProjectName.trim() || !supabase) return
+
+    try {
+      const { data, error: insertError } = await supabase
+        .from('he_time_projects')
+        .insert([
+          {
+            name: newProjectName.trim(),
+            type: newProjectType,
+            color: newProjectColor,
+          }
+        ])
+        .select()
+        .single()
+
+      if (insertError) throw insertError
+
+      setProjects([data, ...projects])
+      setNewProjectName('')
+      setNewProjectType('internal')
+      setNewProjectColor('#3b82f6')
+      setShowAddProject(false)
+    } catch (err: any) {
+      console.error('Error adding project:', err)
+      alert('Fejl ved tilføjelse af projekt: ' + err.message)
+    }
+  }
+
+  // Start editing a project
+  const startEditing = (project: Project) => {
+    setEditingProject(project)
+    setEditProjectName(project.name)
+    setEditProjectType(project.type || 'internal')
+    setEditProjectColor(project.color || '#3b82f6')
+    setShowAddProject(false) // Close add form if open
+  }
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditingProject(null)
+    setEditProjectName('')
+    setEditProjectType('internal')
+    setEditProjectColor('#3b82f6')
+    setShowDeleteConfirm(false)
+  }
+
+  // Update project
+  const handleUpdateProject = async () => {
+    if (!editingProject || !editProjectName.trim() || !supabase) return
+
+    try {
+      const { data, error: updateError } = await supabase
+        .from('he_time_projects')
+        .update({
+          name: editProjectName.trim(),
+          type: editProjectType,
+          color: editProjectColor,
+        })
+        .eq('id', editingProject.id)
+        .select()
+        .single()
+
+      if (updateError) throw updateError
+
+      setProjects(projects.map(p => p.id === editingProject.id ? data : p))
+      cancelEditing()
+    } catch (err: any) {
+      console.error('Error updating project:', err)
+      alert('Fejl ved opdatering af projekt: ' + err.message)
+    }
+  }
+
+  // Delete project
+  const handleDeleteProject = async () => {
+    if (!editingProject || !supabase) return
+
+    try {
+      // First, remove project references from time logs
+      // Set project_id to NULL for all time logs referencing this project
+      const { error: updateLogsError } = await supabase
+        .from('he_time_logs')
+        .update({ project_id: null })
+        .eq('project_id', editingProject.id)
+
+      if (updateLogsError) {
+        console.warn('Warning updating time logs:', updateLogsError)
+        // Continue anyway - might be that project_id column doesn't exist or is nullable
+      }
+
+      // Also try to clear project_name if it matches
+      if (editingProject.name) {
+        const { error: updateNameError } = await supabase
+          .from('he_time_logs')
+          .update({ project_name: null })
+          .eq('project_name', editingProject.name)
+
+        if (updateNameError) {
+          console.warn('Warning updating project_name:', updateNameError)
+        }
+      }
+
+      // Now delete the project
+      const { error: deleteError } = await supabase
+        .from('he_time_projects')
+        .delete()
+        .eq('id', editingProject.id)
+
+      if (deleteError) throw deleteError
+
+      setProjects(projects.filter(p => p.id !== editingProject.id))
+      setShowDeleteConfirm(false)
+      cancelEditing()
+    } catch (err: any) {
+      console.error('Error deleting project:', err)
+      alert('Fejl ved sletning af projekt: ' + err.message)
+    }
+  }
+
+  // Check if project has hours
+  const projectHasHours = (projectId: number | null, projectName: string | null): boolean => {
+    return getProjectHours(projectId, projectName) > 0
+  }
+
+  // Predefined colors for projects
+  const projectColors = [
+    '#3b82f6', // blue
+    '#10b981', // green
+    '#f59e0b', // amber
+    '#ef4444', // red
+    '#8b5cf6', // purple
+    '#ec4899', // pink
+    '#06b6d4', // cyan
+    '#84cc16', // lime
+  ]
+
+  // Calculate total hours for each project
+  const getProjectHours = (projectId: number | null, projectName: string | null): number => {
+    if (!projectId && !projectName) return 0
+    
+    return timeEntries.reduce((total, entry) => {
+      const matchesId = entry.project_id && entry.project_id === projectId
+      const matchesName = projectName && entry.project_name && entry.project_name.toLowerCase() === projectName.toLowerCase()
+      
+      if (matchesId || matchesName) {
+        return total + (entry.hours || 0)
+      }
+      return total
+    }, 0)
+  }
 
   // Group time entries by employee
   const employeesData: EmployeeData[] = (() => {
@@ -558,6 +827,7 @@ export default function TimeTrackingPage() {
             employee={employee}
             year={currentYear}
             month={currentMonth}
+            onDeleteEntry={handleDeleteEntry}
           />
         ))}
       </div>
@@ -573,6 +843,442 @@ export default function TimeTrackingPage() {
           <p className="text-blue-600 text-xs mt-2">
             Tabeller: <code className="bg-blue-100 px-2 py-1 rounded">he_time_logs</code> og <code className="bg-blue-100 px-2 py-1 rounded">he_time_projects</code>
           </p>
+        </div>
+      )}
+
+      {/* Projects Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Projekter</h2>
+          <button
+            onClick={() => setShowAddProject(!showAddProject)}
+            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Tilføj projekt</span>
+          </button>
+        </div>
+
+        {/* Add Project Form */}
+        {showAddProject && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Projektnavn
+                </label>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Indtast projektnavn"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddProject()
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Type
+                </label>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setNewProjectType('internal')}
+                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                      newProjectType === 'internal'
+                        ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Building2 className="h-4 w-4 inline mr-1" />
+                    Internt
+                  </button>
+                  <button
+                    onClick={() => setNewProjectType('customer')}
+                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                      newProjectType === 'customer'
+                        ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Briefcase className="h-4 w-4 inline mr-1" />
+                    Kunde
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Farve
+              </label>
+              <div className="flex space-x-2">
+                {projectColors.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setNewProjectColor(color)}
+                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                      newProjectColor === color
+                        ? 'border-gray-900 scale-110'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 flex space-x-2">
+              <button
+                onClick={handleAddProject}
+                disabled={!newProjectName.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Tilføj projekt
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddProject(false)
+                  setNewProjectName('')
+                  setNewProjectType('internal')
+                  setNewProjectColor('#3b82f6')
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Annuller
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Projects Table */}
+        {loadingProjects ? (
+          <div className="text-center py-8 text-gray-500">Indlæser projekter...</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Interne Projekter */}
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <Building2 className="h-5 w-5 text-primary-600" />
+                <h3 className="text-base font-semibold text-gray-900">Interne projekter</h3>
+              </div>
+              <div className="space-y-2">
+                {projects.filter(p => p.type === 'internal' || !p.type).length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4 text-center border border-gray-200 rounded-lg bg-gray-50">
+                    Ingen interne projekter
+                  </div>
+                ) : (
+                  projects
+                    .filter(p => p.type === 'internal' || !p.type)
+                    .map((project) => (
+                      <div key={project.id}>
+                        {editingProject?.id === project.id ? (
+                          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Projektnavn
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editProjectName}
+                                  onChange={(e) => setEditProjectName(e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleUpdateProject()
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Type
+                                </label>
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() => setEditProjectType('internal')}
+                                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                                      editProjectType === 'internal'
+                                        ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium'
+                                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <Building2 className="h-4 w-4 inline mr-1" />
+                                    Internt
+                                  </button>
+                                  <button
+                                    onClick={() => setEditProjectType('customer')}
+                                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                                      editProjectType === 'customer'
+                                        ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium'
+                                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <Briefcase className="h-4 w-4 inline mr-1" />
+                                    Kunde
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Farve
+                              </label>
+                              <div className="flex space-x-2">
+                                {projectColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={() => setEditProjectColor(color)}
+                                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                      editProjectColor === color
+                                        ? 'border-gray-900 scale-110'
+                                        : 'border-gray-300 hover:border-gray-400'
+                                    }`}
+                                    style={{ backgroundColor: color }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="mt-4 flex items-center justify-between">
+                              <button
+                                onClick={() => {
+                                  if (editingProject && projectHasHours(editingProject.id, editingProject.name)) {
+                                    setShowDeleteConfirm(true)
+                                  } else {
+                                    handleDeleteProject()
+                                  }
+                                }}
+                                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span>Slet projekt</span>
+                              </button>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={handleUpdateProject}
+                                  disabled={!editProjectName.trim()}
+                                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  Gem ændringer
+                                </button>
+                                <button
+                                  onClick={cancelEditing}
+                                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                  Annuller
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => startEditing(project)}
+                            className="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <div
+                                className="w-4 h-4 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: project.color || '#3b82f6' }}
+                              />
+                              <span className="text-sm text-gray-900 truncate">{project.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+                              <Clock className="h-3.5 w-3.5 text-gray-400" />
+                              <span className="text-sm font-medium text-gray-600">
+                                {getProjectHours(project.id, project.name).toFixed(1)}h
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* Kundeprojekter */}
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <Briefcase className="h-5 w-5 text-primary-600" />
+                <h3 className="text-base font-semibold text-gray-900">Kundeprojekter</h3>
+              </div>
+              <div className="space-y-2">
+                {projects.filter(p => p.type === 'customer').length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4 text-center border border-gray-200 rounded-lg bg-gray-50">
+                    Ingen kundeprojekter
+                  </div>
+                ) : (
+                  projects
+                    .filter(p => p.type === 'customer')
+                    .map((project) => (
+                      <div key={project.id}>
+                        {editingProject?.id === project.id ? (
+                          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Projektnavn
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editProjectName}
+                                  onChange={(e) => setEditProjectName(e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleUpdateProject()
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Type
+                                </label>
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() => setEditProjectType('internal')}
+                                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                                      editProjectType === 'internal'
+                                        ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium'
+                                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <Building2 className="h-4 w-4 inline mr-1" />
+                                    Internt
+                                  </button>
+                                  <button
+                                    onClick={() => setEditProjectType('customer')}
+                                    className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                                      editProjectType === 'customer'
+                                        ? 'bg-primary-50 border-primary-500 text-primary-700 font-medium'
+                                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <Briefcase className="h-4 w-4 inline mr-1" />
+                                    Kunde
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Farve
+                              </label>
+                              <div className="flex space-x-2">
+                                {projectColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={() => setEditProjectColor(color)}
+                                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                      editProjectColor === color
+                                        ? 'border-gray-900 scale-110'
+                                        : 'border-gray-300 hover:border-gray-400'
+                                    }`}
+                                    style={{ backgroundColor: color }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="mt-4 flex items-center justify-between">
+                              <button
+                                onClick={() => {
+                                  if (editingProject && projectHasHours(editingProject.id, editingProject.name)) {
+                                    setShowDeleteConfirm(true)
+                                  } else {
+                                    handleDeleteProject()
+                                  }
+                                }}
+                                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span>Slet projekt</span>
+                              </button>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={handleUpdateProject}
+                                  disabled={!editProjectName.trim()}
+                                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  Gem ændringer
+                                </button>
+                                <button
+                                  onClick={cancelEditing}
+                                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                  Annuller
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => startEditing(project)}
+                            className="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <div
+                                className="w-4 h-4 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: project.color || '#3b82f6' }}
+                              />
+                              <span className="text-sm text-gray-900 truncate">{project.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+                              <Clock className="h-3.5 w-3.5 text-gray-400" />
+                              <span className="text-sm font-medium text-gray-600">
+                                {getProjectHours(project.id, project.name).toFixed(1)}h
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && editingProject && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Bekræft sletning</h3>
+                <p className="text-sm text-gray-600">Dette projekt har registrerede timer</p>
+              </div>
+            </div>
+            <div className="mb-4">
+              <p className="text-sm text-gray-700">
+                Er du sikker på, at du vil slette projektet <span className="font-semibold">"{editingProject.name}"</span>?
+              </p>
+              <p className="text-sm text-gray-600 mt-2">
+                Dette projekt har <span className="font-semibold text-gray-900">{getProjectHours(editingProject.id, editingProject.name).toFixed(1)} timer</span> registreret. 
+                Sletningen kan ikke fortrydes.
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Annuller
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Slet projekt
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

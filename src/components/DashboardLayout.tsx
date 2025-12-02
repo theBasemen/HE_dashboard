@@ -17,9 +17,9 @@ interface DashboardLayoutProps {
 
 const navigation = [
   { name: 'Økonomi & Likviditet', href: '/', icon: LayoutDashboard },
+  { name: 'Bilagsanalyse', href: '/expenses', icon: FileText },
   { name: 'SEO & Trafik', href: '/seo', icon: TrendingUp },
   { name: 'LLM / AI Synlighed', href: '/llm', icon: Brain },
-  { name: 'Bilagsanalyse', href: '/expenses', icon: FileText },
   { name: 'Tidsregistrering', href: '/time-tracking', icon: Clock },
 ]
 

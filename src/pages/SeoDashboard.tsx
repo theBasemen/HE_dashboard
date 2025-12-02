@@ -30,6 +30,7 @@ import {
   Search,
   AlertTriangle,
   Check,
+  FileSearch,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -390,6 +391,8 @@ function PageHealthTable() {
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'status' | 'impressions'>('status')
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null)
+  const [historicalData, setHistoricalData] = useState<Map<number, PagePerformance[]>>(new Map())
+  const [loadingHistorical, setLoadingHistorical] = useState<Set<number>>(new Set())
   const badgeRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
   useEffect(() => {
@@ -614,8 +617,55 @@ function PageHealthTable() {
                   return { current: badgeRefs.current.get(page.id) || null }
                 }
 
-                const toggleExpand = () => {
-                  setExpandedRowId(isExpanded ? null : page.id)
+                const toggleExpand = async () => {
+                  if (!isExpanded) {
+                    // Fetch historical data when expanding
+                    const pageUrl = page.url || page.page_name || ''
+                    if (pageUrl && !historicalData.has(page.id)) {
+                      setLoadingHistorical(prev => new Set(prev).add(page.id))
+                      try {
+                        if (supabase) {
+                          // Fetch historical data matching this page's URL or page_name
+                          // Use a filter that matches either field
+                          const { data, error: fetchError } = await supabase
+                            .from('page_performance')
+                            .select('id, created_at, url, page_name, clicks, impressions, ctr, position')
+                            .or(`url.eq."${pageUrl}",page_name.eq."${pageUrl}"`)
+                            .order('created_at', { ascending: true })
+                            .limit(30)
+
+                          if (!fetchError && data && data.length > 0) {
+                            const historical = data.map((row: any) => ({
+                              id: row.id,
+                              created_at: row.created_at,
+                              url: row.url || row.page_name || '',
+                              page_name: row.page_name || null,
+                              clicks: Number(row.clicks || 0),
+                              impressions: Number(row.impressions || 0),
+                              ctr: Number(row.ctr || 0),
+                              position: Number(row.position || 0),
+                            }))
+                            setHistoricalData(prev => new Map(prev).set(page.id, historical))
+                          } else {
+                            // If no data found, set empty array to prevent retrying
+                            setHistoricalData(prev => new Map(prev).set(page.id, []))
+                          }
+                        }
+                      } catch (err) {
+                        console.error('Error fetching historical data:', err)
+                        setHistoricalData(prev => new Map(prev).set(page.id, []))
+                      } finally {
+                        setLoadingHistorical(prev => {
+                          const newSet = new Set(prev)
+                          newSet.delete(page.id)
+                          return newSet
+                        })
+                      }
+                    }
+                    setExpandedRowId(page.id)
+                  } else {
+                    setExpandedRowId(null)
+                  }
                 }
 
                 // Calculate content health
@@ -700,32 +750,111 @@ function PageHealthTable() {
                               <h3 className="text-lg font-semibold text-gray-900">Content Audit</h3>
                             </div>
                             
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {/* Google SERP Preview */}
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-3">Google SERP Preview</h4>
-                                <SerpPreview page={page} />
-                              </div>
-                              
-                              {/* Health Badges */}
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-3">Content Health</h4>
-                                <div className="space-y-3">
-                                  <ContentHealthBadge
-                                    label="Titel Længde"
-                                    value={titleMissing ? null : titleLength}
-                                    min={30}
-                                    max={60}
-                                    isMissing={titleMissing}
-                                  />
-                                  <ContentHealthBadge
-                                    label="Meta Beskrivelse"
-                                    value={metaMissing ? null : metaLength}
-                                    min={120}
-                                    max={160}
-                                    isMissing={metaMissing}
-                                  />
+                            <div className="flex flex-col lg:flex-row gap-6">
+                              {/* Left Column: SERP Preview + Content Health (60%) */}
+                              <div className="flex-1 lg:w-[60%] space-y-6">
+                                {/* Google SERP Preview */}
+                                <div>
+                                  <h4 className="text-sm font-medium text-gray-700 mb-3">Google SERP Preview</h4>
+                                  <SerpPreview page={page} />
                                 </div>
+                                
+                                {/* Health Badges */}
+                                <div>
+                                  <h4 className="text-sm font-medium text-gray-700 mb-3">Content Health</h4>
+                                  <div className="space-y-3">
+                                    <ContentHealthBadge
+                                      label="Titel Længde"
+                                      value={titleMissing ? null : titleLength}
+                                      min={30}
+                                      max={60}
+                                      isMissing={titleMissing}
+                                    />
+                                    <ContentHealthBadge
+                                      label="Meta Beskrivelse"
+                                      value={metaMissing ? null : metaLength}
+                                      min={120}
+                                      max={160}
+                                      isMissing={metaMissing}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Right Column: Traffic Chart (40%) */}
+                              <div className="flex-1 lg:w-[40%]">
+                                <h4 className="text-sm font-medium text-gray-700 mb-3">Trafik Over Tid</h4>
+                                {loadingHistorical.has(page.id) ? (
+                                  <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="animate-pulse text-gray-500 text-sm">Indlæser...</div>
+                                  </div>
+                                ) : historicalData.has(page.id) && historicalData.get(page.id)!.length > 0 ? (
+                                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                                    <ResponsiveContainer width="100%" height={240}>
+                                      <AreaChart
+                                        data={historicalData.get(page.id)!.map((row) => ({
+                                          date: formatDate(row.created_at),
+                                          impressions: row.impressions,
+                                          clicks: row.clicks,
+                                        }))}
+                                      >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                        <XAxis
+                                          dataKey="date"
+                                          stroke="#6b7280"
+                                          style={{ fontSize: '10px' }}
+                                          tick={{ fill: '#6b7280' }}
+                                        />
+                                        <YAxis
+                                          yAxisId="left"
+                                          stroke="#3b82f6"
+                                          style={{ fontSize: '10px' }}
+                                          tick={{ fill: '#3b82f6' }}
+                                        />
+                                        <YAxis
+                                          yAxisId="right"
+                                          orientation="right"
+                                          stroke="#10b981"
+                                          style={{ fontSize: '10px' }}
+                                          tick={{ fill: '#10b981' }}
+                                        />
+                                        <Tooltip
+                                          contentStyle={{
+                                            backgroundColor: 'white',
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: '8px',
+                                            fontSize: '12px',
+                                          }}
+                                        />
+                                        <Legend wrapperStyle={{ fontSize: '12px' }} />
+                                        <Area
+                                          yAxisId="left"
+                                          type="monotone"
+                                          dataKey="impressions"
+                                          stroke="#3b82f6"
+                                          fill="#3b82f6"
+                                          fillOpacity={0.2}
+                                          name="Visninger"
+                                        />
+                                        <Area
+                                          yAxisId="right"
+                                          type="monotone"
+                                          dataKey="clicks"
+                                          stroke="#10b981"
+                                          fill="#10b981"
+                                          fillOpacity={0.2}
+                                          name="Klik"
+                                        />
+                                      </AreaChart>
+                                    </ResponsiveContainer>
+                                  </div>
+                                ) : (
+                                  <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="text-gray-500 text-sm text-center">
+                                      Ingen historiske data tilgængelig
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -760,11 +889,254 @@ function calculateTrend(current: number, previous: number): {
   }
 }
 
+// Reusable traffic chart component
+function TrafficChart({ 
+  data, 
+  title, 
+  height = 300 
+}: { 
+  data: Array<{ date: string; impressions: number; clicks: number }>
+  title: string
+  height?: number
+}) {
+  // Create a sanitized ID from title (remove spaces and special chars)
+  const chartId = title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')
+
+  if (data.length === 0) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
+        <div className="h-64 flex items-center justify-center text-gray-500 text-sm">
+          Ingen data tilgængelig
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id={`colorImpressions-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={`colorClicks-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <XAxis
+            dataKey="date"
+            stroke="#6b7280"
+            style={{ fontSize: '10px' }}
+            tick={{ fill: '#6b7280' }}
+          />
+          <YAxis
+            yAxisId="left"
+            stroke="#3b82f6"
+            style={{ fontSize: '10px' }}
+            tick={{ fill: '#3b82f6' }}
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            stroke="#10b981"
+            style={{ fontSize: '10px' }}
+            tick={{ fill: '#10b981' }}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'white',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              fontSize: '12px',
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: '11px' }} />
+          <Area
+            yAxisId="left"
+            type="monotone"
+            dataKey="impressions"
+            stroke="#3b82f6"
+            fillOpacity={1}
+            fill={`url(#colorImpressions-${chartId})`}
+            name="Visninger"
+          />
+          <Area
+            yAxisId="right"
+            type="monotone"
+            dataKey="clicks"
+            stroke="#10b981"
+            fillOpacity={1}
+            fill={`url(#colorClicks-${chartId})`}
+            name="Klik"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 export default function SeoDashboard() {
   const { snapshots, tasks, competitors, loading, error, refetch } = useSeoData()
   const [refreshing, setRefreshing] = useState(false)
   const [expandedCompetitors, setExpandedCompetitors] = useState<Set<number>>(new Set())
   const [activeTab, setActiveTab] = useState<'overview' | 'page-health'>('overview')
+  const [trafficData, setTrafficData] = useState<Array<{ date: string; impressions: number; clicks: number }>>([])
+  const [loadingTraffic, setLoadingTraffic] = useState(true)
+  const [eventPageData, setEventPageData] = useState<Map<string, Array<{ date: string; impressions: number; clicks: number }>>>(new Map())
+  const [loadingEventPages, setLoadingEventPages] = useState(true)
+
+  // Fetch aggregated traffic data (impressions and clicks by date)
+  useEffect(() => {
+    const fetchTrafficData = async () => {
+      if (!supabase) {
+        setLoadingTraffic(false)
+        return
+      }
+
+      try {
+        setLoadingTraffic(true)
+        // Fetch all page_performance records from the last 30 days
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        
+        const { data, error: fetchError } = await supabase
+          .from('page_performance')
+          .select('created_at, impressions, clicks')
+          .gte('created_at', thirtyDaysAgo.toISOString())
+          .order('created_at', { ascending: true })
+
+        if (fetchError) throw fetchError
+
+        // Group by date and sum impressions and clicks
+        const dateMap = new Map<string, { impressions: number; clicks: number }>()
+        
+        data?.forEach((row: any) => {
+          const date = new Date(row.created_at).toISOString().split('T')[0] // YYYY-MM-DD
+          const existing = dateMap.get(date) || { impressions: 0, clicks: 0 }
+          dateMap.set(date, {
+            impressions: existing.impressions + Number(row.impressions || 0),
+            clicks: existing.clicks + Number(row.clicks || 0),
+          })
+        })
+
+        // Convert to array and format dates, then sort by date
+        const trafficArray = Array.from(dateMap.entries())
+          .map(([dateStr, values]) => ({
+            dateStr, // Keep original date string for sorting
+            date: formatDate(dateStr),
+            impressions: values.impressions,
+            clicks: values.clicks,
+          }))
+          .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+          .map(({ dateStr, ...rest }) => rest) // Remove dateStr after sorting
+
+        setTrafficData(trafficArray)
+      } catch (err: any) {
+        console.error('Error fetching traffic data:', err)
+      } finally {
+        setLoadingTraffic(false)
+      }
+    }
+
+    fetchTrafficData()
+  }, [])
+
+  // Fetch traffic data for specific event pages
+  useEffect(() => {
+    const fetchEventPageData = async () => {
+      if (!supabase) {
+        setLoadingEventPages(false)
+        return
+      }
+
+      // Map of display names to search patterns (URL slugs and variations)
+      const eventPages: Map<string, string[]> = new Map([
+        ['filmteambuilding', ['film-teambuilding', 'filmteambuilding', 'film_teambuilding']],
+        ['aiTeambuilding', ['ai-teambuilding', 'aiteambuilding', 'ai_teambuilding']],
+        ['playground', ['playground']],
+        ['firmaetPaaKlingen', ['firmaet-paa-klingen', 'firmaetpaaklingen', 'firmaet_paa_klingen']],
+      ])
+      
+      try {
+        setLoadingEventPages(true)
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        
+        const pageDataMap = new Map<string, Array<{ date: string; impressions: number; clicks: number }>>()
+
+        // Fetch all page_performance data from the last 30 days
+        const { data: allData, error: fetchError } = await supabase
+          .from('page_performance')
+          .select('created_at, impressions, clicks, url, page_name')
+          .gte('created_at', thirtyDaysAgo.toISOString())
+          .order('created_at', { ascending: true })
+
+        if (fetchError) {
+          console.error('Error fetching event page data:', fetchError)
+          setLoadingEventPages(false)
+          return
+        }
+
+        // Process data for each event page
+        for (const [displayName, searchPatterns] of eventPages.entries()) {
+          // Filter rows that match any of the search patterns
+          const matchingRows = (allData || []).filter((row: any) => {
+            const url = (row.url || '').toLowerCase()
+            const pageName = (row.page_name || '').toLowerCase()
+            
+            return searchPatterns.some(pattern => {
+              const patternLower = pattern.toLowerCase()
+              return url.includes(patternLower) || pageName.includes(patternLower)
+            })
+          })
+
+          if (matchingRows.length > 0) {
+            // Group by date and sum impressions and clicks
+            const dateMap = new Map<string, { impressions: number; clicks: number }>()
+            
+            matchingRows.forEach((row: any) => {
+              const date = new Date(row.created_at).toISOString().split('T')[0]
+              const existing = dateMap.get(date) || { impressions: 0, clicks: 0 }
+              dateMap.set(date, {
+                impressions: existing.impressions + Number(row.impressions || 0),
+                clicks: existing.clicks + Number(row.clicks || 0),
+              })
+            })
+
+            // Convert to array and format dates
+            const trafficArray = Array.from(dateMap.entries())
+              .map(([dateStr, values]) => ({
+                dateStr,
+                date: formatDate(dateStr),
+                impressions: values.impressions,
+                clicks: values.clicks,
+              }))
+              .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+              .map(({ dateStr, ...rest }) => rest)
+
+            pageDataMap.set(displayName, trafficArray)
+          } else {
+            // Set empty array if no data found
+            pageDataMap.set(displayName, [])
+          }
+        }
+
+        setEventPageData(pageDataMap)
+      } catch (err: any) {
+        console.error('Error fetching event page data:', err)
+      } finally {
+        setLoadingEventPages(false)
+      }
+    }
+
+    fetchEventPageData()
+  }, [])
 
   // Get latest and previous snapshots for KPI calculations
   const latestSnapshot = snapshots[snapshots.length - 1]
@@ -792,12 +1164,8 @@ export default function SeoDashboard() {
       }
     : null
 
-  // Prepare chart data
-  const chartData = snapshots.map((snapshot) => ({
-    date: formatDate(snapshot.created_at),
-    clicks: snapshot.gsc_clicks,
-    mobileScore: snapshot.psi_mobile_score,
-  }))
+  // Prepare chart data - use traffic data (impressions and clicks)
+  const chartData = trafficData
 
   // Mark task as done
   const markTaskAsDone = async (taskId: number) => {
@@ -879,13 +1247,14 @@ export default function SeoDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('page-health')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 ${
               activeTab === 'page-health'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            🏥 Side-Diagnose
+            <FileSearch className="h-4 w-4" />
+            <span>Side-Diagnose</span>
           </button>
         </nav>
       </div>
@@ -1023,7 +1392,7 @@ export default function SeoDashboard() {
       )}
 
       {/* Charts Section */}
-      {chartData.length > 0 && (
+      {!loadingTraffic && chartData.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Trafik & Mobile Performance Over Tid
@@ -1031,9 +1400,13 @@ export default function SeoDashboard() {
           <ResponsiveContainer width="100%" height={400}>
             <AreaChart data={chartData}>
               <defs>
-                <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1048,15 +1421,13 @@ export default function SeoDashboard() {
                 stroke="#3b82f6"
                 style={{ fontSize: '12px' }}
                 tick={{ fill: '#3b82f6' }}
-                label={{ value: 'Clicks', angle: -90, position: 'insideLeft', fill: '#3b82f6' }}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                stroke="#8b5cf6"
+                stroke="#10b981"
                 style={{ fontSize: '12px' }}
-                tick={{ fill: '#8b5cf6' }}
-                label={{ value: 'Mobile Score', angle: 90, position: 'insideRight', fill: '#8b5cf6' }}
+                tick={{ fill: '#10b981' }}
               />
               <Tooltip
                 contentStyle={{
@@ -1069,24 +1440,49 @@ export default function SeoDashboard() {
               <Area
                 yAxisId="left"
                 type="monotone"
-                dataKey="clicks"
+                dataKey="impressions"
                 stroke="#3b82f6"
                 fillOpacity={1}
-                fill="url(#colorClicks)"
-                name="Clicks"
+                fill="url(#colorImpressions)"
+                name="Visninger"
               />
-              <Line
+              <Area
                 yAxisId="right"
                 type="monotone"
-                dataKey="mobileScore"
-                stroke="#8b5cf6"
-                strokeWidth={2}
-                dot={{ fill: '#8b5cf6', r: 3 }}
-                name="Mobile Score"
+                dataKey="clicks"
+                stroke="#10b981"
+                fillOpacity={1}
+                fill="url(#colorClicks)"
+                name="Klik"
               />
-              <ReferenceLine yAxisId="right" y={90} stroke="#10b981" strokeDasharray="3 3" />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Event Page Traffic Charts */}
+      {!loadingEventPages && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TrafficChart 
+            data={eventPageData.get('filmteambuilding') || []} 
+            title="Film Teambuilding"
+            height={300}
+          />
+          <TrafficChart 
+            data={eventPageData.get('aiTeambuilding') || []} 
+            title="AI Teambuilding"
+            height={300}
+          />
+          <TrafficChart 
+            data={eventPageData.get('playground') || []} 
+            title="Playground"
+            height={300}
+          />
+          <TrafficChart 
+            data={eventPageData.get('firmaetPaaKlingen') || []} 
+            title="Firmaet på Klingen"
+            height={300}
+          />
         </div>
       )}
 
