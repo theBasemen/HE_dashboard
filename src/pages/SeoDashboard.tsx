@@ -27,6 +27,9 @@ import {
   Droplet,
   Heart,
   Download,
+  Search,
+  AlertTriangle,
+  Check,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -71,6 +74,8 @@ interface PagePerformance {
   impressions: number
   ctr: number
   position: number
+  title_text?: string | null
+  meta_description?: string | null
 }
 
 interface PageHealthStatus {
@@ -268,12 +273,126 @@ function StatusTooltip({
   )
 }
 
+// Content health badge component
+function ContentHealthBadge({ 
+  label, 
+  value, 
+  min, 
+  max, 
+  isMissing 
+}: { 
+  label: string
+  value: number | null
+  min: number
+  max: number
+  isMissing: boolean
+}) {
+  if (isMissing || value === null) {
+    return (
+      <div className="flex items-center space-x-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+        <AlertTriangle className="h-4 w-4 text-red-600" />
+        <div>
+          <div className="text-xs font-medium text-red-900">{label}</div>
+          <div className="text-xs text-red-600">Mangler indhold</div>
+        </div>
+      </div>
+    )
+  }
+
+  const isOptimal = value >= min && value <= max
+  const isTooShort = value < min
+  const isTooLong = value > max
+
+  let bgColor = 'bg-green-50'
+  let borderColor = 'border-green-200'
+  let iconColor = 'text-green-600'
+  let textColor = 'text-green-900'
+  let statusText = 'Optimal'
+
+  if (isTooShort) {
+    bgColor = 'bg-yellow-50'
+    borderColor = 'border-yellow-200'
+    iconColor = 'text-yellow-600'
+    textColor = 'text-yellow-900'
+    statusText = 'For kort'
+  } else if (isTooLong) {
+    bgColor = 'bg-red-50'
+    borderColor = 'border-red-200'
+    iconColor = 'text-red-600'
+    textColor = 'text-red-900'
+    statusText = 'For lang'
+  }
+
+  return (
+    <div className={`flex items-center space-x-2 px-3 py-1.5 ${bgColor} border ${borderColor} rounded-lg`}>
+      {isOptimal ? (
+        <Check className={`h-4 w-4 ${iconColor}`} />
+      ) : (
+        <AlertTriangle className={`h-4 w-4 ${iconColor}`} />
+      )}
+      <div>
+        <div className="text-xs font-medium text-gray-900">{label}</div>
+        <div className="text-xs text-gray-600">
+          {value} tegn • {statusText}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Google SERP Preview component
+function SerpPreview({ page }: { page: PagePerformance }) {
+  const displayUrl = page.url || page.page_name || 'Ukendt side'
+  const title = page.title_text || ''
+  const description = page.meta_description || ''
+
+  // Extract domain from URL
+  const getDomain = (url: string) => {
+    try {
+      const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`)
+      return urlObj.hostname.replace('www.', '')
+    } catch {
+      return 'himmelstrupevents.dk'
+    }
+  }
+
+  const domain = getDomain(displayUrl)
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <div className="flex items-start space-x-3">
+        {/* Favicon placeholder */}
+        <div className="w-4 h-4 bg-gray-300 rounded mt-1 flex-shrink-0"></div>
+        <div className="flex-1 min-w-0">
+          {/* Site name and URL */}
+          <div className="flex items-center space-x-2 mb-1">
+            <span className="text-xs text-gray-600">Himmelstrup Events</span>
+            <span className="text-gray-400">•</span>
+            <span className="text-xs text-green-700 truncate">{domain}</span>
+          </div>
+          
+          {/* Title */}
+          <h3 className={`text-xl text-blue-700 hover:underline cursor-pointer mb-1 ${!title ? 'text-gray-400 italic' : ''}`}>
+            {title || '(Ingen titel)'}
+          </h3>
+          
+          {/* Description */}
+          <p className={`text-sm text-gray-600 leading-relaxed ${!description ? 'text-gray-400 italic' : ''}`}>
+            {description || '(Ingen beskrivelse)'}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // PageHealthTable component
 function PageHealthTable() {
   const [pages, setPages] = useState<PagePerformance[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'status' | 'impressions'>('status')
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null)
   const badgeRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
   useEffect(() => {
@@ -289,9 +408,10 @@ function PageHealthTable() {
         setError(null)
 
         // Fetch last 1000 records ordered by created_at desc
+        // Include title_text and meta_description for content audit
         const { data, error: fetchError } = await supabase
           .from('page_performance')
-          .select('*')
+          .select('id, created_at, url, page_name, clicks, impressions, ctr, position, title_text, meta_description')
           .order('created_at', { ascending: false })
           .limit(1000)
 
@@ -311,6 +431,8 @@ function PageHealthTable() {
               impressions: Number(row.impressions || 0),
               ctr: Number(row.ctr || 0),
               position: Number(row.position || row.avg_position || 0),
+              title_text: row.title_text || null,
+              meta_description: row.meta_description || null,
             })
           }
         })
@@ -481,6 +603,7 @@ function PageHealthTable() {
               {sortedPages.map((page) => {
                 const health = getHealthStatus(page)
                 const displayName = page.page_name || page.url || 'Ukendt side'
+                const isExpanded = expandedRowId === page.id
 
                 const setBadgeRef = (element: HTMLDivElement | null) => {
                   if (element) {
@@ -494,58 +617,125 @@ function PageHealthTable() {
                   return { current: badgeRefs.current.get(page.id) || null }
                 }
 
+                const toggleExpand = () => {
+                  setExpandedRowId(isExpanded ? null : page.id)
+                }
+
+                // Calculate content health
+                const titleLength = page.title_text?.length || 0
+                const metaLength = page.meta_description?.length || 0
+                const titleMissing = !page.title_text || page.title_text.trim() === ''
+                const metaMissing = !page.meta_description || page.meta_description.trim() === ''
+
                 return (
-                  <tr key={page.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4">
-                      <StatusTooltip 
-                        tooltip={health.tooltip} 
-                        badgeRef={getBadgeRef()}
-                      >
-                        <div
-                          ref={setBadgeRef}
-                          className={`inline-flex items-center space-x-1.5 px-2 py-1 rounded ${health.bgColor} cursor-help`}
-                        >
-                          {health.icon}
-                          <span className={`text-xs font-medium ${health.color}`}>{health.label}</span>
+                  <>
+                    <tr 
+                      key={page.id} 
+                      className={`hover:bg-gray-50 transition-colors cursor-pointer ${isExpanded ? 'bg-gray-50' : ''}`}
+                      onClick={toggleExpand}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-2">
+                          <StatusTooltip 
+                            tooltip={health.tooltip} 
+                            badgeRef={getBadgeRef()}
+                          >
+                            <div
+                              ref={setBadgeRef}
+                              className={`inline-flex items-center space-x-1.5 px-2 py-1 rounded ${health.bgColor} cursor-help`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {health.icon}
+                              <span className={`text-xs font-medium ${health.color}`}>{health.label}</span>
+                            </div>
+                          </StatusTooltip>
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                          )}
                         </div>
-                      </StatusTooltip>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm font-medium text-gray-900 truncate max-w-xs" title={displayName}>
-                        {displayName}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="text-sm text-gray-900">
-                        <div className="font-medium">{page.impressions.toLocaleString('da-DK')}</div>
-                        <div className="text-xs text-gray-500">{page.clicks.toLocaleString('da-DK')} klik</div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-24">
-                          <div
-                            className={`h-2 rounded-full ${
-                              health.status === 'critical'
-                                ? 'bg-red-500'
-                                : health.status === 'warning'
-                                  ? 'bg-yellow-500'
-                                  : 'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min((page.ctr / 5) * 100, 100)}%` }}
-                          />
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm font-medium text-gray-900 truncate max-w-xs" title={displayName}>
+                          {displayName}
                         </div>
-                        <span className="text-sm font-medium text-gray-900 min-w-[3rem]">
-                          {page.ctr.toFixed(2)}%
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="text-sm text-gray-900">
+                          <div className="font-medium">{page.impressions.toLocaleString('da-DK')}</div>
+                          <div className="text-xs text-gray-500">{page.clicks.toLocaleString('da-DK')} klik</div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-24">
+                            <div
+                              className={`h-2 rounded-full ${
+                                health.status === 'critical'
+                                  ? 'bg-red-500'
+                                  : health.status === 'warning'
+                                    ? 'bg-yellow-500'
+                                    : 'bg-green-500'
+                              }`}
+                              style={{ width: `${Math.min((page.ctr / 5) * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 min-w-[3rem]">
+                            {page.ctr.toFixed(2)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className="text-sm font-medium text-gray-900">
+                          {page.position > 0 ? page.position.toFixed(1) : '-'}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span className="text-sm font-medium text-gray-900">
-                        {page.position > 0 ? page.position.toFixed(1) : '-'}
-                      </span>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    {/* Expanded Content Audit Row */}
+                    {isExpanded && (
+                      <tr key={`${page.id}-expanded`} className="bg-gray-50">
+                        <td colSpan={5} className="px-4 py-6">
+                          <div className="space-y-4">
+                            {/* Header */}
+                            <div className="flex items-center space-x-2 mb-4">
+                              <Search className="h-5 w-5 text-primary-600" />
+                              <h3 className="text-lg font-semibold text-gray-900">Content Audit</h3>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Google SERP Preview */}
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-700 mb-3">Google SERP Preview</h4>
+                                <SerpPreview page={page} />
+                              </div>
+                              
+                              {/* Health Badges */}
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-700 mb-3">Content Health</h4>
+                                <div className="space-y-3">
+                                  <ContentHealthBadge
+                                    label="Titel Længde"
+                                    value={titleMissing ? null : titleLength}
+                                    min={30}
+                                    max={60}
+                                    isMissing={titleMissing}
+                                  />
+                                  <ContentHealthBadge
+                                    label="Meta Beskrivelse"
+                                    value={metaMissing ? null : metaLength}
+                                    min={120}
+                                    max={160}
+                                    isMissing={metaMissing}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 )
               })}
             </tbody>
