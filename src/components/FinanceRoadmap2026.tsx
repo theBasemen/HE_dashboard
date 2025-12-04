@@ -195,6 +195,7 @@ export default function FinanceRoadmap2026() {
             <ComposedChart
               data={chartData}
               margin={{ top: 20, right: 30, left: 10, bottom: 60 }}
+              barCategoryGap="15%"
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis 
@@ -221,7 +222,6 @@ export default function FinanceRoadmap2026() {
               {/* Bar chart for expected result */}
               <Bar 
                 dataKey="expected_result"
-                barCategoryGap="15%"
                 shape={(props: any) => {
                   const { x, y, width, height, payload } = props
                   const value = payload?.expected_result || 0
