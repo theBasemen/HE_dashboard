@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { ComposedChart, Line, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { TrendingUp, Wallet, PiggyBank } from 'lucide-react'
 import { fetchFinanceRoadmap2026, FinanceRoadmap2026 as FinanceRoadmap2026Data } from '../services/api'
 
@@ -191,73 +191,10 @@ export default function FinanceRoadmap2026() {
 
   return (
     <div className="space-y-6">
-      {/* Section Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Finansiel Roadmap 2026</h2>
-        <p className="mt-1 text-sm text-gray-600">Forventet omsætning, udgifter og resultat for hele året</p>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-        {/* Forventet Omsætning */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Forventet Omsætning</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {formatNumber(totals.totalTurnover / 1000000)} mio. kr.
-              </p>
-              <p className="mt-1 text-xs text-gray-500">2026</p>
-            </div>
-            <div className="h-12 w-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-emerald-600" />
-            </div>
-          </div>
-        </div>
-
-        {/* Forventede Variable Udgifter */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Forventede Variable Udgifter</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
-                {formatNumber(totals.totalCosts / 1000000)} mio. kr.
-              </p>
-              <p className="mt-1 text-xs text-gray-500">2026</p>
-            </div>
-            <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <Wallet className="h-6 w-6 text-red-600" />
-            </div>
-          </div>
-        </div>
-
-        {/* Forventet Resultat */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Forventet Resultat</p>
-              <p className={`mt-2 text-3xl font-bold ${
-                totals.totalResult >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {formatNumber(totals.totalResult / 1000000)} mio. kr.
-              </p>
-              <p className="mt-1 text-xs text-gray-500">2026</p>
-            </div>
-            <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
-              totals.totalResult >= 0 ? 'bg-green-100' : 'bg-red-100'
-            }`}>
-              <PiggyBank className={`h-6 w-6 ${
-                totals.totalResult >= 0 ? 'text-green-600' : 'text-red-600'
-              }`} />
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Chart */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Månedlig Oversigt</h3>
+          <h3 className="text-xl font-bold text-gray-900">Årsoverblik for 2026</h3>
           <p className="mt-1 text-sm text-gray-600">Forventet resultat, budgetmål og break-even punkt</p>
         </div>
         <div className="h-[500px] w-full">
@@ -275,21 +212,7 @@ export default function FinanceRoadmap2026() {
                 textAnchor="end"
                 height={60}
               />
-              <YAxis 
-                stroke="#6b7280"
-                fontSize={12}
-                tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-              />
               <Tooltip content={<CustomTooltip />} />
-              <Legend 
-                wrapperStyle={{ paddingTop: '10px' }}
-                formatter={(value) => {
-                  if (value === 'expected_result') return 'Forventet Resultat'
-                  if (value === 'budget_target') return 'Budget'
-                  if (value === 'break_even_point') return 'Break Even'
-                  return value
-                }}
-              />
               <defs>
                 <linearGradient id="colorExpectedResult" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#d1d5db" stopOpacity={0.4}/>
@@ -330,6 +253,35 @@ export default function FinanceRoadmap2026() {
               />
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Forventet Omsætning */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+            <p className="text-xs font-medium text-gray-600 mb-2">Forventet Omsætning</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {formatNumber(totals.totalTurnover / 1000000)} mio. kr.
+            </p>
+          </div>
+
+          {/* Forventede Variable Udgifter */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+            <p className="text-xs font-medium text-gray-600 mb-2">Forventede Variable Udgifter</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {formatNumber(totals.totalCosts / 1000000)} mio. kr.
+            </p>
+          </div>
+
+          {/* Forventet Resultat */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+            <p className="text-xs font-medium text-gray-600 mb-2">Forventet Resultat</p>
+            <p className={`text-2xl font-bold ${
+              totals.totalResult >= 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {formatNumber(totals.totalResult / 1000000)} mio. kr.
+            </p>
+          </div>
         </div>
       </div>
     </div>
