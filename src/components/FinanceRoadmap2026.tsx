@@ -37,8 +37,8 @@ export default function FinanceRoadmap2026() {
   const formatNumber = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '0'
     return new Intl.NumberFormat('da-DK', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 1,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value)
   }
 
@@ -96,10 +96,14 @@ export default function FinanceRoadmap2026() {
         totalTurnover: acc.totalTurnover + (item.expected_turnover || 0),
         totalCosts: acc.totalCosts + (item.expected_costs || 0),
         totalResult: acc.totalResult + monthlyResult,
+        totalBurnRate: acc.totalBurnRate + (item.expected_costs || 0) + (item.break_even_point || 0), // Total costs including break-even
       }
     },
-    { totalTurnover: 0, totalCosts: 0, totalResult: 0 }
+    { totalTurnover: 0, totalCosts: 0, totalResult: 0, totalBurnRate: 0 }
   )
+
+  // Calculate average monthly burn rate
+  const avgBurnRate = data.length > 0 ? totals.totalBurnRate / data.length : 0
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -291,31 +295,46 @@ export default function FinanceRoadmap2026() {
         </div>
 
         {/* Summary Cards */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-8">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">Forventede foreløbige tal for 2026</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Forventet Omsætning */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-            <p className="text-xs font-medium text-gray-600 mb-2">Forventet Omsætning</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+            <p className="text-xs font-medium text-gray-600 mb-2">Omsætning</p>
             <p className="text-2xl font-bold text-gray-900">
-              {formatNumber(totals.totalTurnover / 1000000)} mio. kr.
+              {formatNumber(totals.totalTurnover / 1000000)}
             </p>
+            <p className="text-xs text-gray-500 mt-1">mio. kr.</p>
           </div>
 
           {/* Forventede Variable Udgifter */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-            <p className="text-xs font-medium text-gray-600 mb-2">Forventede Variable Udgifter</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+            <p className="text-xs font-medium text-gray-600 mb-2">Projekt udgifter</p>
             <p className="text-2xl font-bold text-gray-900">
-              {formatNumber(totals.totalCosts / 1000000)} mio. kr.
+              {formatNumber(totals.totalCosts / 1000000)}
             </p>
+            <p className="text-xs text-gray-500 mt-1">mio. kr.</p>
+          </div>
+
+          {/* Forventet burn-rate */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+            <p className="text-xs font-medium text-gray-600 mb-2">Faste omkostninger</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {formatNumber(avgBurnRate / 1000000)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">mio. kr. / mdr.</p>
           </div>
 
           {/* Forventet Resultat */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
             <p className="text-xs font-medium text-gray-600 mb-2">Forventet Resultat</p>
             <p className={`text-2xl font-bold ${
               totals.totalResult >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {formatNumber(totals.totalResult / 1000000)} mio. kr.
+              {formatNumber(totals.totalResult / 1000000)}
             </p>
+            <p className="text-xs text-gray-500 mt-1">mio. kr.</p>
+          </div>
           </div>
         </div>
       </div>
