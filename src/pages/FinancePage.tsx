@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { fetchFinanceData, FinanceSnapshot } from '../services/api'
 import YearlyOverview from '../components/YearlyOverview'
+import FinanceRoadmap2026 from '../components/FinanceRoadmap2026'
 
 // FinancePage component - displays executive overview and yearly financial data
 export default function FinancePage() {
@@ -298,6 +299,9 @@ export default function FinancePage() {
 
       {/* Yearly Financial Overview */}
       <YearlyOverview history={snapshot.history || []} />
+
+      {/* Finance Roadmap 2026 */}
+      <FinanceRoadmap2026 />
 
       {/* Zone A: Enterprise Value (Moved to bottom, less prominent) */}
       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl shadow-sm border border-yellow-200 p-6">

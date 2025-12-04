@@ -5,6 +5,7 @@ import SeoDashboard from './pages/SeoDashboard'
 import LLMPage from './pages/LLMPage'
 import ExpenseExplorer from './pages/ExpenseExplorer'
 import TimeTrackingPage from './pages/TimeTrackingPage'
+import YearWheelPage from './pages/YearWheelPage'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/llm" element={<LLMPage />} />
           <Route path="/expenses" element={<ExpenseExplorer />} />
           <Route path="/time-tracking" element={<TimeTrackingPage />} />
+          <Route path="/year-wheel" element={<YearWheelPage />} />
         </Routes>
       </DashboardLayout>
     </Router>

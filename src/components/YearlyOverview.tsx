@@ -93,11 +93,11 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
           <h3 className="text-xl font-bold text-gray-900">Månedlig Performance</h3>
           <p className="mt-1 text-sm text-gray-600">Omsætning, omkostninger og driftsresultat</p>
         </div>
-        <div className="h-[400px] w-full">
+        <div className="h-[600px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={history}
-              margin={{ top: 10, right: 30, left: 0, bottom: 80 }}
+              margin={{ top: 20, right: 30, left: 10, bottom: 60 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis 
@@ -106,7 +106,7 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
                 fontSize={12}
                 angle={-45}
                 textAnchor="end"
-                height={80}
+                height={60}
               />
               <YAxis 
                 stroke="#6b7280"
@@ -122,6 +122,7 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
                   if (value === 'result') return 'Resultat'
                   return value
                 }}
+                wrapperStyle={{ paddingTop: '10px' }}
               />
               <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="2 2" />
               

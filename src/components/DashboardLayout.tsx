@@ -8,7 +8,8 @@ import {
   X,
   Building2,
   FileText,
-  Clock
+  Clock,
+  Calendar
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'SEO & Trafik', href: '/seo', icon: TrendingUp },
   { name: 'LLM / AI Synlighed', href: '/llm', icon: Brain },
   { name: 'Tidsregistrering', href: '/time-tracking', icon: Clock },
+  { name: 'Årshjul', href: '/year-wheel', icon: Calendar },
 ]
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {

@@ -53,6 +53,53 @@ export interface FinanceSnapshot {
 }
 
 /**
+ * Finance roadmap data structure from finance_roadmap_2026 table
+ */
+export interface FinanceRoadmap2026 {
+  month_id: string
+  month_name: string
+  expected_turnover: number
+  expected_costs: number
+  expected_result: number
+  budget_target: number
+  break_even_point: number
+  actual_turnover: number
+  actual_costs: number
+}
+
+/**
+ * Fetches finance roadmap data for 2026 from finance_roadmap_2026 table
+ * Returns all rows ordered by month_id ascending
+ */
+export async function fetchFinanceRoadmap2026(): Promise<FinanceRoadmap2026[]> {
+  if (!supabase) {
+    console.error('Supabase client not configured')
+    return []
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('finance_roadmap_2026')
+      .select('*')
+      .order('month_id', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching finance roadmap 2026:', error)
+      return []
+    }
+
+    if (data && Array.isArray(data)) {
+      return data as FinanceRoadmap2026[]
+    }
+
+    return []
+  } catch (error) {
+    console.error('Failed to fetch finance roadmap 2026:', error)
+    return []
+  }
+}
+
+/**
  * Fetches yearly history for a specific year from finance_history_years table
  */
 async function fetchYearlyHistory(year: number): Promise<MonthlyHistory[]> {
