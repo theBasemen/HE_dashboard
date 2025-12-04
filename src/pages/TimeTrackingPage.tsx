@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Calendar, AlertCircle, User, Plus, Building2, Briefcase, Trash2 } from 'lucide-react'
+import { Clock, Calendar, AlertCircle, User, Plus, Building2, Briefcase, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface TimeLog {
@@ -55,12 +55,14 @@ function DayTooltip({
   entries, 
   date, 
   cellElement,
-  onDeleteEntry 
+  onDeleteEntry,
+  onClose
 }: { 
   entries: TimeLog[]
   date: string
   cellElement: HTMLDivElement | null
   onDeleteEntry?: (entryId: number) => void
+  onClose?: () => void
 }) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ placement: 'top' | 'bottom'; align: 'left' | 'center' | 'right' }>({ placement: 'top', align: 'center' })
@@ -117,10 +119,25 @@ function DayTooltip({
   return (
     <div 
       ref={tooltipRef}
-      className={`absolute z-50 w-64 p-3 bg-gray-900 text-white rounded-lg shadow-xl pointer-events-auto ${placementClasses} ${alignClasses}`}
+      className={`tooltip-container absolute z-50 w-64 p-3 bg-gray-900 text-white rounded-lg shadow-xl pointer-events-auto ${placementClasses} ${alignClasses}`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div className="text-xs font-semibold mb-2 border-b border-gray-700 pb-1">
-        {new Date(date + 'T12:00:00').toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' })}
+      <div className="flex items-center justify-between mb-2 border-b border-gray-700 pb-1">
+        <div className="text-xs font-semibold">
+          {new Date(date + 'T12:00:00').toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </div>
+        {onClose && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            className="p-1 hover:bg-gray-700 rounded transition-colors"
+            title="Luk"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
       </div>
       <div className="space-y-1.5 max-h-48 overflow-y-auto">
         {entries.map((entry) => (
@@ -145,17 +162,17 @@ function DayTooltip({
             </div>
             <div className="ml-2 flex items-center space-x-2 flex-shrink-0">
               <span className="font-semibold text-white">
-                {entry.hours.toFixed(1)}h
+                {entry.hours.toFixed(1)}t
               </span>
               {onDeleteEntry && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`Er du sikker på, at du vil slette denne tidsregistrering (${entry.hours.toFixed(1)} timer)?`)) {
+                    if (confirm(`Er du sikker på, at du vil slette denne tidsregistrering (${entry.hours.toFixed(1)}t)?`)) {
                       onDeleteEntry(entry.id)
                     }
                   }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded text-red-400 hover:text-white"
+                  className="p-1 hover:bg-red-600 rounded text-red-400 hover:text-white transition-colors"
                   title="Slet tidsregistrering"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -167,7 +184,7 @@ function DayTooltip({
       </div>
       <div className="mt-2 pt-2 border-t border-gray-700 flex items-center justify-between text-xs font-semibold">
         <span>Total:</span>
-        <span>{totalHours.toFixed(1)} timer</span>
+        <span>{totalHours.toFixed(1)}t</span>
       </div>
       {/* Arrow */}
       <div className={`absolute ${arrowClasses}`}>
@@ -189,8 +206,31 @@ function MonthCalendar({
   month: number
   onDeleteEntry?: (entryId: number) => void
 }) {
-  const [hoveredDate, setHoveredDate] = useState<string | null>(null)
+  const [clickedDate, setClickedDate] = useState<string | null>(null)
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  
+  // Close tooltip when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clickedDate && cellRefs.current.get(clickedDate)) {
+        const cellElement = cellRefs.current.get(clickedDate)!
+        if (!cellElement.contains(event.target as Node)) {
+          // Check if click is not on the tooltip itself
+          const tooltip = (event.target as HTMLElement).closest('.tooltip-container')
+          if (!tooltip) {
+            setClickedDate(null)
+          }
+        }
+      }
+    }
+
+    if (clickedDate) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [clickedDate])
   
   const daysInMonth = getDaysInMonth(year, month)
   const firstDay = getFirstDayOfMonth(year, month)
@@ -248,7 +288,7 @@ function MonthCalendar({
         <div className="flex items-center space-x-1.5">
           <Clock className="h-3 w-3 text-gray-500 flex-shrink-0" />
           <span className="text-xs text-gray-600">
-            Total: <span className="font-semibold text-gray-900">{totalHours.toFixed(1)}h</span>
+            Total: <span className="font-semibold text-gray-900">{totalHours.toFixed(1)}t</span>
           </span>
         </div>
       </div>
@@ -275,22 +315,27 @@ function MonthCalendar({
           const isFullDay = hours >= 7.5
           const isPartialDay = hours > 0 && hours < 7.5
           const dayEntries = employee.entriesByDate[date] || []
-          const showTooltip = hoveredDate === date && dayEntries.length > 0
+          const showTooltip = clickedDate === date && dayEntries.length > 0
 
           return (
             <div
               key={date}
               className="relative"
-              onMouseEnter={() => setHoveredDate(date)}
-              onMouseLeave={() => setHoveredDate(null)}
             >
               <div
                 ref={(el) => setCellRef(date, el)}
+                onClick={() => {
+                  if (dayEntries.length > 0) {
+                    // Toggle tooltip on click
+                    setClickedDate(clickedDate === date ? null : date)
+                  }
+                }}
                 className={`
                   h-8 border border-gray-200 rounded text-center flex flex-col items-center justify-center cursor-pointer
                   ${hasHours ? 'bg-primary-50 border-primary-300' : 'bg-gray-50'}
                   ${isFullDay ? 'bg-green-50 border-green-300' : ''}
                   ${isPartialDay ? 'bg-yellow-50 border-yellow-300' : ''}
+                  ${showTooltip ? 'border-primary-500 ring-2 ring-primary-200' : ''}
                   transition-colors hover:border-primary-400
                 `}
               >
@@ -309,7 +354,7 @@ function MonthCalendar({
                       ${isFullDay ? 'text-green-700' : isPartialDay ? 'text-yellow-700' : 'text-primary-700'}
                     `}
                   >
-                    {hours.toFixed(1)}h
+                    {hours.toFixed(1)}t
                   </span>
                 )}
               </div>
@@ -319,6 +364,7 @@ function MonthCalendar({
                   date={date} 
                   cellElement={cellRefs.current.get(date) || null}
                   onDeleteEntry={onDeleteEntry}
+                  onClose={() => setClickedDate(null)}
                 />
               )}
             </div>
@@ -444,19 +490,28 @@ export default function TimeTrackingPage() {
     if (!newProjectName.trim() || !supabase) return
 
     try {
+      // Insert project - id should be auto-generated by database
+      // Only include fields that we're setting, let database handle id and created_at
+      const projectData: { name: string; type: 'internal' | 'customer'; color: string } = {
+        name: newProjectName.trim(),
+        type: newProjectType,
+        color: newProjectColor,
+      }
+
       const { data, error: insertError } = await supabase
         .from('he_time_projects')
-        .insert([
-          {
-            name: newProjectName.trim(),
-            type: newProjectType,
-            color: newProjectColor,
-          }
-        ])
+        .insert(projectData)
         .select()
         .single()
 
-      if (insertError) throw insertError
+      if (insertError) {
+        console.error('Insert error details:', insertError)
+        throw insertError
+      }
+
+      if (!data) {
+        throw new Error('Ingen data returneret fra database')
+      }
 
       setProjects([data, ...projects])
       setNewProjectName('')
@@ -465,7 +520,8 @@ export default function TimeTrackingPage() {
       setShowAddProject(false)
     } catch (err: any) {
       console.error('Error adding project:', err)
-      alert('Fejl ved tilføjelse af projekt: ' + err.message)
+      const errorMessage = err.message || err.details || 'Ukendt fejl'
+      alert('Fejl ved tilføjelse af projekt: ' + errorMessage)
     }
   }
 
@@ -697,27 +753,20 @@ export default function TimeTrackingPage() {
     employees.sort((a, b) => b.totalHours - a.totalHours)
 
     // Filter out "Ukendt" entries that have no hours (they're just placeholders)
-    const employeesWithHours = employees.filter(emp => emp.totalHours > 0 || emp.name !== 'Ukendt')
+    // But keep employees with hours even if name is "Ukendt" (they might have data)
+    const employeesWithHours = employees.filter(emp => {
+      // Keep if they have hours OR if their name is not "Ukendt"
+      return emp.totalHours > 0 || emp.name !== 'Ukendt'
+    })
 
     // Log found employees for debugging
     console.log('Found employees:', employeesWithHours.map(e => ({ name: e.name, hours: e.totalHours })))
 
-    // Ensure we have exactly 3 employees (pad with empty if needed)
-    const result: EmployeeData[] = []
-    for (let i = 0; i < 3; i++) {
-      if (i < employeesWithHours.length) {
-        const { totalHours, ...employeeData } = employeesWithHours[i]
-        result.push(employeeData)
-      } else {
-        // Add placeholder only if we don't have enough real employees
-        const placeholderNames = ['Medarbejder 1', 'Medarbejder 2', 'Medarbejder 3']
-        result.push({
-          name: placeholderNames[i],
-          hoursByDate: {},
-          entriesByDate: {},
-        })
-      }
-    }
+    // Only return employees that have actual hours (content)
+    // Remove totalHours before returning
+    const result: EmployeeData[] = employeesWithHours
+      .filter(emp => emp.totalHours > 0) // Only show employees with registered hours
+      .map(({ totalHours, ...employeeData }) => employeeData)
 
     return result
   })()
@@ -806,11 +855,11 @@ export default function TimeTrackingPage() {
           <span className="font-medium text-gray-700">Forklaring:</span>
           <div className="flex items-center space-x-1.5">
             <div className="w-3 h-3 bg-green-50 border border-green-300 rounded" />
-            <span className="text-gray-600">Fuld dag (≥7.5h)</span>
+            <span className="text-gray-600">Fuld dag (≥7.5t)</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <div className="w-3 h-3 bg-yellow-50 border border-yellow-300 rounded" />
-            <span className="text-gray-600">Delvis dag (&lt;7.5h)</span>
+            <span className="text-gray-600">Delvis dag (&lt;7.5t)</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded" />
@@ -819,18 +868,20 @@ export default function TimeTrackingPage() {
         </div>
       </div>
 
-      {/* Three Month Calendars */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {employeesData.map((employee) => (
-          <MonthCalendar
-            key={employee.name}
-            employee={employee}
-            year={currentYear}
-            month={currentMonth}
-            onDeleteEntry={handleDeleteEntry}
-          />
-        ))}
-      </div>
+      {/* Month Calendars - Only show employees with registered hours */}
+      {employeesData.length > 0 && (
+        <div className={`grid grid-cols-1 ${employeesData.length >= 2 ? 'md:grid-cols-2' : ''} ${employeesData.length >= 3 ? 'lg:grid-cols-3' : ''} gap-4`}>
+          {employeesData.map((employee) => (
+            <MonthCalendar
+              key={employee.name}
+              employee={employee}
+              year={currentYear}
+              month={currentMonth}
+              onDeleteEntry={handleDeleteEntry}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Info if no data */}
       {timeEntries.length === 0 && !error && (
@@ -1087,7 +1138,7 @@ export default function TimeTrackingPage() {
                             <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
                               <Clock className="h-3.5 w-3.5 text-gray-400" />
                               <span className="text-sm font-medium text-gray-600">
-                                {getProjectHours(project.id, project.name).toFixed(1)}h
+                                {getProjectHours(project.id, project.name).toFixed(1)}t
                               </span>
                             </div>
                           </div>
@@ -1228,7 +1279,7 @@ export default function TimeTrackingPage() {
                             <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
                               <Clock className="h-3.5 w-3.5 text-gray-400" />
                               <span className="text-sm font-medium text-gray-600">
-                                {getProjectHours(project.id, project.name).toFixed(1)}h
+                                {getProjectHours(project.id, project.name).toFixed(1)}t
                               </span>
                             </div>
                           </div>
@@ -1260,7 +1311,7 @@ export default function TimeTrackingPage() {
                 Er du sikker på, at du vil slette projektet <span className="font-semibold">"{editingProject.name}"</span>?
               </p>
               <p className="text-sm text-gray-600 mt-2">
-                Dette projekt har <span className="font-semibold text-gray-900">{getProjectHours(editingProject.id, editingProject.name).toFixed(1)} timer</span> registreret. 
+                Dette projekt har <span className="font-semibold text-gray-900">{getProjectHours(editingProject.id, editingProject.name).toFixed(1)}t</span> registreret. 
                 Sletningen kan ikke fortrydes.
               </p>
             </div>
