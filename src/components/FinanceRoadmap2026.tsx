@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { ComposedChart, Line, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
-import { TrendingUp, Wallet, PiggyBank } from 'lucide-react'
 import { fetchFinanceRoadmap2026, FinanceRoadmap2026 as FinanceRoadmap2026Data } from '../services/api'
 
 export default function FinanceRoadmap2026() {
@@ -148,23 +147,8 @@ export default function FinanceRoadmap2026() {
     return null
   }
 
-  // Prepare chart data with calculated area between budget and break-even
-  const chartData = completeData.map(item => {
-    const budget = item.budget_target || 0
-    const breakEven = item.break_even_point || 0
-    const minValue = Math.min(budget, breakEven)
-    const maxValue = Math.max(budget, breakEven)
-    
-    return {
-      ...item,
-      // Calculate the area between budget_target and break_even_point
-      budget_zone_base: minValue,
-      budget_zone_height: maxValue - minValue,
-      // For the green area, we need the difference between budget and break-even
-      budget_zone_top: maxValue,
-      budget_zone_bottom: minValue,
-    }
-  })
+  // Prepare chart data
+  const chartData = completeData
 
   // Loading skeleton
   if (loading) {
@@ -231,10 +215,6 @@ export default function FinanceRoadmap2026() {
                   <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
                   <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                 </linearGradient>
-                <linearGradient id="colorBudgetZone" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                </linearGradient>
               </defs>
               <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="2 2" />
               
@@ -246,17 +226,6 @@ export default function FinanceRoadmap2026() {
                 fill="url(#colorBreakEven)"
                 dot={false}
                 activeDot={false}
-              />
-              
-              {/* Green gradient fill area between budget and break-even */}
-              <Area
-                type="monotone"
-                dataKey="budget_target"
-                stroke="none"
-                fill="url(#colorBudgetZone)"
-                dot={false}
-                activeDot={false}
-                baseLine="break_even_point"
               />
               
               {/* Lines for budget and break-even */}
