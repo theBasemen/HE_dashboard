@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { MonthlyHistory } from '../services/api'
 
@@ -33,20 +33,6 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
     return ((revenue - variableCosts) / revenue) * 100
   }
 
-  // Calculate gradient offset for split color (green above zero, red below zero)
-  const calculateGradientOffset = (data: MonthlyHistory[]): number => {
-    const dataMax = Math.max(...data.map(i => i.result))
-    const dataMin = Math.min(...data.map(i => i.result))
-
-    if (dataMax <= 0) {
-      return 0
-    }
-    if (dataMin >= 0) {
-      return 1
-    }
-
-    return dataMax / (dataMax - dataMin)
-  }
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -73,8 +59,6 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
     )
   }
 
-  const gradientOffset = calculateGradientOffset(history)
-
   return (
     <div className="space-y-6">
       {/* Chart */}
@@ -85,16 +69,19 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
         </div>
         <div className="h-[500px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
+            <BarChart
               data={history}
               margin={{ top: 20, right: 30, left: 10, bottom: 60 }}
+              barCategoryGap="15%"
             >
               <defs>
-                <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stopColor="#86efac" stopOpacity={1} />
-                  <stop offset={gradientOffset} stopColor="#86efac" stopOpacity={0.1} />
-                  <stop offset={gradientOffset} stopColor="#fca5a5" stopOpacity={0.1} />
-                  <stop offset="1" stopColor="#fca5a5" stopOpacity={1} />
+                <linearGradient id="colorPositive" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.6}/>
+                </linearGradient>
+                <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.6}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -109,17 +96,48 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="2 2" />
               
-              {/* Area with split color gradient */}
-              <Area 
-                type="monotone" 
-                dataKey="result" 
-                stroke="#10b981" 
-                strokeWidth={3}
-                fill="url(#splitColor)"
-                dot={false}
-                activeDot={false}
-              />
-            </AreaChart>
+              {/* Single bar series with custom cell rendering for colors and rounded corners */}
+              <Bar 
+                dataKey="result"
+                shape={(props: any) => {
+                  const { x, y, width, height, payload } = props
+                  const value = payload?.result || 0
+                  
+                  // For positive bars: y is at the top, height goes down
+                  // For negative bars: y is at zero line, height is negative (goes up)
+                  const isPositive = value >= 0
+                  const barHeight = Math.abs(height)
+                  const barY = isPositive ? y : y - barHeight
+                  
+                  // Radius: [topLeft, topRight, bottomRight, bottomLeft]
+                  const radius = isPositive ? [6, 6, 0, 0] : [0, 0, 6, 6]
+                  const [topLeft, topRight, bottomRight, bottomLeft] = radius
+                  
+                  // Create rounded rectangle path
+                  const path = `
+                    M ${x + topLeft},${barY}
+                    L ${x + width - topRight},${barY}
+                    Q ${x + width},${barY} ${x + width},${barY + topRight}
+                    L ${x + width},${barY + barHeight - bottomRight}
+                    Q ${x + width},${barY + barHeight} ${x + width - bottomRight},${barY + barHeight}
+                    L ${x + bottomLeft},${barY + barHeight}
+                    Q ${x},${barY + barHeight} ${x},${barY + barHeight - bottomLeft}
+                    L ${x},${barY + topLeft}
+                    Q ${x},${barY} ${x + topLeft},${barY}
+                    Z
+                  `
+                  
+                  const fill = isPositive ? "url(#colorPositive)" : "url(#colorNegative)"
+                  return <path d={path} fill={fill} />
+                }}
+              >
+                {history.map((entry, index) => {
+                  const value = entry.result || 0
+                  const fill = value >= 0 ? "url(#colorPositive)" : "url(#colorNegative)"
+                  return <Cell key={`cell-${index}`} fill={fill} />
+                })}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
 

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { fetchFinanceData, FinanceSnapshot } from '../services/api'
+import { fetchFinanceData, FinanceSnapshot, fetchFinanceRoadmap2026, FinanceRoadmap2026 } from '../services/api'
 import YearlyOverview from '../components/YearlyOverview'
-import FinanceRoadmap2026 from '../components/FinanceRoadmap2026'
+import FinanceRoadmap2026Component from '../components/FinanceRoadmap2026'
 
 // FinancePage component - displays executive overview and yearly financial data
 export default function FinancePage() {
   const [snapshot, setSnapshot] = useState<FinanceSnapshot | null>(null)
+  const [roadmap2026, setRoadmap2026] = useState<FinanceRoadmap2026[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -15,12 +16,16 @@ export default function FinancePage() {
       try {
         setLoading(true)
         setError(null)
-        const data = await fetchFinanceData()
-        if (!data) {
+        const [financeData, roadmapData] = await Promise.all([
+          fetchFinanceData(),
+          fetchFinanceRoadmap2026()
+        ])
+        if (!financeData) {
           setError('Ingen data tilgængelig')
         } else {
-          setSnapshot(data)
+          setSnapshot(financeData)
         }
+        setRoadmap2026(roadmapData)
       } catch (err) {
         console.error('Failed to fetch finance data:', err)
         setError('Fejl ved indlæsning af data')
@@ -75,7 +80,7 @@ export default function FinancePage() {
   }
 
   // Calculate runway (months until cash runs out)
-  // Based on net liquidity and average monthly burn rate from first 11 months of 2025
+  // Based on net liquidity, expected 2026 turnover, and average monthly burn rate from first 11 months of 2025
   const calculateRunway = (): number | null => {
     if (!snapshot || !snapshot.history || snapshot.history.length === 0) return null
     
@@ -111,6 +116,13 @@ export default function FinancePage() {
     // Negative = making money, Positive = burning cash
     const netBurnRate = avgMonthlyCosts - avgMonthlyRevenue
     
+    // Calculate total expected turnover for 2026
+    const totalExpectedTurnover2026 = roadmap2026.reduce((sum, item) => 
+      sum + (item.expected_turnover || 0), 0)
+    
+    // Total available cash = current net liquidity + expected 2026 turnover
+    const totalAvailableCash = netLiquidity + totalExpectedTurnover2026
+    
     // Debug logging
     console.log('Runway Calculation:', {
       monthsUsed: last11Months.length,
@@ -122,18 +134,20 @@ export default function FinancePage() {
       avgMonthlyRevenue,
       netBurnRate,
       netLiquidity,
-      runway: netBurnRate > 0 ? Math.floor(netLiquidity / netBurnRate) : null
+      totalExpectedTurnover2026,
+      totalAvailableCash,
+      runway: netBurnRate > 0 ? Math.floor(totalAvailableCash / netBurnRate) : null
     })
     
     // If net burn rate is negative or zero, company is making money
     // Calculate runway based on costs alone (worst case: revenue stops)
     if (netBurnRate <= 0) {
       // Company is profitable, but calculate runway if revenue stopped
-      return Math.floor(netLiquidity / avgMonthlyCosts)
+      return Math.floor(totalAvailableCash / avgMonthlyCosts)
     }
     
     // Company is burning cash, use net burn rate
-    return Math.floor(netLiquidity / netBurnRate)
+    return Math.floor(totalAvailableCash / netBurnRate)
   }
 
   // Loading skeleton
@@ -357,7 +371,7 @@ export default function FinancePage() {
               <div>
                 <p className="text-xs font-medium text-gray-600">Runway</p>
                 <p className="text-[10px] text-gray-500 mt-0.5">
-                  Baseret på gennemsnitlig burnrate i 2025
+                  2025 burn-rate
                 </p>
               </div>
               <p className={`text-xl font-bold ${
@@ -375,7 +389,7 @@ export default function FinancePage() {
       </div>
 
       {/* Finance Roadmap 2026 */}
-      <FinanceRoadmap2026 />
+      <FinanceRoadmap2026Component />
 
       {/* Yearly Financial Overview */}
       <YearlyOverview history={snapshot.history || []} />
