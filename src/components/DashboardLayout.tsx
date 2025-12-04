@@ -6,9 +6,9 @@ import {
   Brain, 
   Menu, 
   X,
-  Building2,
   Clock,
-  Calendar
+  Calendar,
+  Building2
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -25,6 +25,8 @@ const navigation = [
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [logoError, setLogoError] = useState(false)
+  const [mobileLogoError, setMobileLogoError] = useState(false)
   const location = useLocation()
 
   return (
@@ -47,10 +49,25 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <Building2 className="h-6 w-6 text-primary-600" />
-              <span className="text-xl font-bold text-gray-900">Himmelstrup</span>
+          <div className="flex items-center justify-between h-[104px] px-6 border-b border-gray-200">
+            <div className="flex items-center">
+              {!logoError ? (
+                <img 
+                  src="/he_logo.png?v=1" 
+                  alt="Himmelstrup Events" 
+                  className="h-[60px] w-[60px] object-contain my-[15px]"
+                  onError={(e) => {
+                    console.error('Failed to load logo:', e)
+                    setLogoError(true)
+                  }}
+                  onLoad={() => console.log('Logo loaded successfully')}
+                />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Building2 className="h-6 w-6 text-primary-600" />
+                  <span className="text-xl font-bold text-gray-900">Himmelstrup</span>
+                </div>
+              )}
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -97,9 +114,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex items-center space-x-2 ml-4">
-            <Building2 className="h-5 w-5 text-primary-600" />
-            <span className="text-lg font-bold text-gray-900">Himmelstrup</span>
+          <div className="flex items-center ml-4">
+            <img 
+              src="/he_logo.png?v=1" 
+              alt="Himmelstrup Events" 
+              className="h-[60px] w-[60px] object-contain my-[15px]"
+              onError={() => {
+                console.error('Failed to load mobile logo, showing fallback')
+                setMobileLogoError(true)
+              }}
+              style={{ display: mobileLogoError ? 'none' : 'block' }}
+            />
+            {mobileLogoError && (
+              <div className="flex items-center space-x-2">
+                <Building2 className="h-5 w-5 text-primary-600" />
+                <span className="text-lg font-bold text-gray-900">Himmelstrup</span>
+              </div>
+            )}
           </div>
         </header>
 
