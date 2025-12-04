@@ -102,8 +102,8 @@ export default function FinanceRoadmap2026() {
     { totalTurnover: 0, totalCosts: 0, totalResult: 0, totalBurnRate: 0 }
   )
 
-  // Calculate average monthly burn rate
-  const avgBurnRate = data.length > 0 ? totals.totalBurnRate / data.length : 0
+  // Get break-even point (should be the same for all months, use first available)
+  const breakEvenPoint = data.length > 0 ? (data[0].break_even_point || 0) : 0
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -320,7 +320,7 @@ export default function FinanceRoadmap2026() {
           <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
             <p className="text-xs font-medium text-gray-600 mb-2">Faste omkostninger</p>
             <p className="text-2xl font-bold text-gray-900">
-              {formatNumber(avgBurnRate / 1000000)}
+              {formatNumber(breakEvenPoint / 1000000)}
             </p>
             <p className="text-xs text-gray-500 mt-1">mio. kr. / mdr.</p>
           </div>
