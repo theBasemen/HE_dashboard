@@ -206,7 +206,7 @@ export default function FinanceRoadmap2026() {
           <h3 className="text-xl font-bold text-gray-900">Årsoverblik for 2026</h3>
           <p className="mt-1 text-sm text-gray-600">Forventet resultat, budgetmål og break-even punkt</p>
         </div>
-        <div className="h-[500px] w-full">
+        <div className="h-[375px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={chartData}

@@ -7,7 +7,6 @@ import {
   Menu, 
   X,
   Building2,
-  FileText,
   Clock,
   Calendar
 } from 'lucide-react'
@@ -18,7 +17,6 @@ interface DashboardLayoutProps {
 
 const navigation = [
   { name: 'Økonomi & Likviditet', href: '/', icon: LayoutDashboard },
-  { name: 'Bilagsanalyse', href: '/expenses', icon: FileText },
   { name: 'SEO & Trafik', href: '/seo', icon: TrendingUp },
   { name: 'LLM / AI Synlighed', href: '/llm', icon: Brain },
   { name: 'Tidsregistrering', href: '/time-tracking', icon: Clock },

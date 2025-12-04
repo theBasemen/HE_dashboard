@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import { MonthlyHistory } from '../services/api'
 
 interface YearlyOverviewProps {
@@ -67,7 +68,7 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
           <h3 className="text-xl font-bold text-gray-900">Årsoverblik for 2025</h3>
           <p className="mt-1 text-sm text-gray-600">Driftsresultat per måned</p>
         </div>
-        <div className="h-[500px] w-full">
+        <div className="h-[375px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={history}
@@ -154,6 +155,16 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
               <ChevronDown className="h-5 w-5 text-gray-600" />
             )}
           </button>
+          
+          {/* Bilagsanalyse Link */}
+          <Link
+            to="/expenses"
+            className="flex items-center space-x-2 px-4 py-3 mb-4 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors"
+          >
+            <FileText className="h-4 w-4" />
+            <span>Bilagsanalyse</span>
+          </Link>
+          
           {isTableExpanded && (
             <div className="overflow-x-auto">
               <table className="w-full">
