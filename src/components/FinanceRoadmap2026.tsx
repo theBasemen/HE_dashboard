@@ -43,28 +43,6 @@ export default function FinanceRoadmap2026() {
     }).format(value)
   }
 
-  // Format month name to short form (e.g., "January 2026" -> "Jan")
-  const formatMonthName = (monthName: string): string => {
-    const monthMap: { [key: string]: string } = {
-      'January': 'Jan',
-      'February': 'Feb',
-      'March': 'Mar',
-      'April': 'Apr',
-      'May': 'Maj',
-      'June': 'Jun',
-      'July': 'Jul',
-      'August': 'Aug',
-      'September': 'Sep',
-      'October': 'Okt',
-      'November': 'Nov',
-      'December': 'Dec',
-    }
-    
-    const parts = monthName.split(' ')
-    const month = parts[0]
-    return monthMap[month] || month.substring(0, 3)
-  }
-
   // Generate all 12 months for 2026, filling in missing months with empty data
   const allMonths = [
     { month_id: '2026-01', month_name: 'January 2026', month_short: 'Jan' },
