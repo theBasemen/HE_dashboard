@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ComposedChart, Line, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { fetchFinanceRoadmap2026, FinanceRoadmap2026 as FinanceRoadmap2026Data } from '../services/api'
 
 export default function FinanceRoadmap2026() {
@@ -207,26 +207,65 @@ export default function FinanceRoadmap2026() {
               />
               <Tooltip content={<CustomTooltip />} />
               <defs>
-                <linearGradient id="colorExpectedResult" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#d1d5db" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#d1d5db" stopOpacity={0}/>
+                <linearGradient id="colorPositive" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.6}/>
                 </linearGradient>
-                <linearGradient id="colorBreakEven" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.6}/>
                 </linearGradient>
               </defs>
               <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="2 2" />
               
-              {/* Red gradient fill area under break-even curve */}
-              <Area
-                type="monotone"
-                dataKey="break_even_point"
-                stroke="none"
-                fill="url(#colorBreakEven)"
-                dot={false}
-                activeDot={false}
-              />
+              {/* Bar chart for expected result */}
+              <Bar 
+                dataKey="expected_result"
+                barCategoryGap="15%"
+                shape={(props: any) => {
+                  const { x, y, width, height, payload } = props
+                  const value = payload?.expected_result || 0
+                  const breakEven = payload?.break_even_point || 0
+                  
+                  // Color based on break-even comparison, not just positive/negative
+                  const isAboveBreakEven = value >= breakEven
+                  
+                  // For positive bars: y is at the top, height goes down
+                  // For negative bars: y is at zero line, height is negative (goes up)
+                  const isPositive = value >= 0
+                  const barHeight = Math.abs(height)
+                  const barY = isPositive ? y : y - barHeight
+                  
+                  // Radius: [topLeft, topRight, bottomRight, bottomLeft]
+                  const radius = isPositive ? [6, 6, 0, 0] : [0, 0, 6, 6]
+                  const [topLeft, topRight, bottomRight, bottomLeft] = radius
+                  
+                  // Create rounded rectangle path
+                  const path = `
+                    M ${x + topLeft},${barY}
+                    L ${x + width - topRight},${barY}
+                    Q ${x + width},${barY} ${x + width},${barY + topRight}
+                    L ${x + width},${barY + barHeight - bottomRight}
+                    Q ${x + width},${barY + barHeight} ${x + width - bottomRight},${barY + barHeight}
+                    L ${x + bottomLeft},${barY + barHeight}
+                    Q ${x},${barY + barHeight} ${x},${barY + barHeight - bottomLeft}
+                    L ${x},${barY + topLeft}
+                    Q ${x},${barY} ${x + topLeft},${barY}
+                    Z
+                  `
+                  
+                  const fill = isAboveBreakEven ? "url(#colorPositive)" : "url(#colorNegative)"
+                  return <path d={path} fill={fill} />
+                }}
+              >
+                {chartData.map((entry, index) => {
+                  const value = entry.expected_result || 0
+                  const breakEven = entry.break_even_point || 0
+                  const isAboveBreakEven = value >= breakEven
+                  const fill = isAboveBreakEven ? "url(#colorPositive)" : "url(#colorNegative)"
+                  return <Cell key={`cell-${index}`} fill={fill} />
+                })}
+              </Bar>
               
               {/* Lines for budget and break-even */}
               <Line 
@@ -246,17 +285,6 @@ export default function FinanceRoadmap2026() {
                 strokeDasharray="3 3"
                 dot={false}
                 activeDot={{ r: 5, fill: '#ef4444' }}
-              />
-              
-              {/* Area with gradient fill for expected result */}
-              <Area
-                type="monotone"
-                dataKey="expected_result"
-                stroke="#374151"
-                strokeWidth={1.5}
-                fill="url(#colorExpectedResult)"
-                dot={false}
-                activeDot={false}
               />
             </ComposedChart>
           </ResponsiveContainer>
