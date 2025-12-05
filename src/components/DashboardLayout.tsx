@@ -3,12 +3,12 @@ import { Link, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   TrendingUp, 
-  Brain, 
   Menu, 
   X,
   Clock,
   Calendar,
-  Building2
+  Building2,
+  Users
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -16,10 +16,10 @@ interface DashboardLayoutProps {
 }
 
 const navigation = [
-  { name: 'Økonomi & Likviditet', href: '/', icon: LayoutDashboard },
-  { name: 'SEO & Trafik', href: '/seo', icon: TrendingUp },
-  { name: 'LLM / AI Synlighed', href: '/llm', icon: Brain },
+  { name: 'Medarbejdere', href: '/admin/users', icon: Users },
   { name: 'Tidsregistrering', href: '/time-tracking', icon: Clock },
+  { name: 'Økonomi & Likviditet', href: '/', icon: LayoutDashboard },
+  { name: 'SEO & AI synlighed', href: '/seo', icon: TrendingUp },
   { name: 'Årshjul', href: '/year-wheel', icon: Calendar },
 ]
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   AreaChart,
   Area,
@@ -29,6 +30,7 @@ import {
   AlertTriangle,
   Check,
   FileSearch,
+  Brain,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -382,6 +384,117 @@ function SerpPreview({ page }: { page: PagePerformance }) {
   )
 }
 
+// Calculate traffic trend for a page
+function calculateTrafficTrend(current: PagePerformance, previous: PagePerformance | null): 'up' | 'down' | 'stable' {
+  if (!previous) return 'stable'
+  
+  // Calculate weighted score: impressions (40%), clicks (40%), CTR (20%)
+  const currentScore = (current.impressions * 0.4) + (current.clicks * 0.4) + (current.ctr * 20)
+  const previousScore = (previous.impressions * 0.4) + (previous.clicks * 0.4) + (previous.ctr * 20)
+  
+  const change = currentScore - previousScore
+  const changePercent = previousScore > 0 ? (change / previousScore) * 100 : 0
+  
+  // Consider stable if change is less than 5%
+  if (Math.abs(changePercent) < 5) return 'stable'
+  
+  return change > 0 ? 'up' : 'down'
+}
+
+// AI Visibility Tab component
+function AIVisibilityTab() {
+  // Mock data for AI audits
+  const aiAudits = [
+    {
+      id: 1,
+      query: "Bedste eventbureau i DK",
+      result: "Nævnt som nr 3",
+      status: "success",
+      date: "2024-01-15",
+    },
+    {
+      id: 2,
+      query: "Eventplanlægning København",
+      result: "Nævnt som nr 1",
+      status: "success",
+      date: "2024-01-10",
+    },
+    {
+      id: 3,
+      query: "Corporate events Danmark",
+      result: "Ikke nævnt",
+      status: "warning",
+      date: "2024-01-05",
+    },
+    {
+      id: 4,
+      query: "Kreative eventløsninger",
+      result: "Nævnt som nr 5",
+      status: "success",
+      date: "2023-12-28",
+    },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Share of Model Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="h-10 w-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <Brain className="h-6 w-6 text-purple-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Share of Model</h2>
+        </div>
+        <p className="text-gray-600 mb-6">
+          Måler hvor ofte Himmelstrup Events nævnes af AI-modeller i relevante kontekster.
+        </p>
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-gray-900 mb-2">23.5%</p>
+            <p className="text-sm text-gray-600">Af relevante queries i test-sættet</p>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Audit Results */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
+        <h2 className="text-xl font-bold text-gray-900 mb-6">Seneste AI-Audit Tjek</h2>
+        <div className="space-y-4">
+          {aiAudits.map((audit) => (
+            <div
+              key={audit.id}
+              className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              <div className="flex-shrink-0 mt-1">
+                {audit.status === 'success' ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      Test: "{audit.query}"
+                    </p>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Resultat: {audit.result}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
+                    {new Date(audit.date).toLocaleDateString('da-DK')}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // PageHealthTable component
 function PageHealthTable() {
   const [pages, setPages] = useState<PagePerformance[]>([])
@@ -391,6 +504,7 @@ function PageHealthTable() {
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null)
   const [historicalData, setHistoricalData] = useState<Map<number, PagePerformance[]>>(new Map())
   const [loadingHistorical, setLoadingHistorical] = useState<Set<number>>(new Set())
+  const [previousSnapshots, setPreviousSnapshots] = useState<Map<string, PagePerformance>>(new Map())
   const badgeRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
   useEffect(() => {
@@ -415,12 +529,15 @@ function PageHealthTable() {
 
         if (fetchError) throw fetchError
 
-        // Filter to keep only the most recent entry for each unique URL
-        const urlMap = new Map<string, PagePerformance>()
+        // Group by URL and get the 2 most recent entries for each URL
+        const urlMap = new Map<string, PagePerformance[]>()
         data?.forEach((row: any) => {
           const url = row.url || row.page_name || row.page_url || ''
-          if (url && !urlMap.has(url)) {
-            urlMap.set(url, {
+          if (url) {
+            if (!urlMap.has(url)) {
+              urlMap.set(url, [])
+            }
+            const pageData: PagePerformance = {
               id: row.id,
               created_at: row.created_at,
               url: url,
@@ -431,12 +548,31 @@ function PageHealthTable() {
               position: Number(row.position || row.avg_position || 0),
               title_text: row.title_text || null,
               meta_description: row.meta_description || null,
-            })
+            }
+            urlMap.get(url)!.push(pageData)
           }
         })
 
-        const uniquePages = Array.from(urlMap.values())
+        // Get most recent and previous snapshot for each URL
+        const uniquePages: PagePerformance[] = []
+        const previousMap = new Map<string, PagePerformance>()
+        
+        urlMap.forEach((snapshots, url) => {
+          // Sort by created_at desc to get most recent first
+          snapshots.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          
+          // Most recent is current
+          const current = snapshots[0]
+          uniquePages.push(current)
+          
+          // Second most recent is previous (if exists)
+          if (snapshots.length > 1) {
+            previousMap.set(url, snapshots[1])
+          }
+        })
+
         setPages(uniquePages)
+        setPreviousSnapshots(previousMap)
       } catch (err: any) {
         console.error('Error fetching page performance:', err)
         setError(err.message || 'Failed to fetch page performance data')
@@ -707,9 +843,23 @@ function PageHealthTable() {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="text-sm text-gray-900">
-                          <div className="font-medium">{page.impressions.toLocaleString('da-DK')}</div>
-                          <div className="text-xs text-gray-500">{page.clicks.toLocaleString('da-DK')} klik</div>
+                        <div className="flex items-center justify-end space-x-2">
+                          <div className="text-sm text-gray-900">
+                            <div className="font-medium">{page.impressions.toLocaleString('da-DK')}</div>
+                            <div className="text-xs text-gray-500">{page.clicks.toLocaleString('da-DK')} klik</div>
+                          </div>
+                          {(() => {
+                            const previous = previousSnapshots.get(page.url || page.page_name || '')
+                            const trend = calculateTrafficTrend(page, previous || null)
+                            
+                            if (trend === 'up') {
+                              return <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
+                            } else if (trend === 'down') {
+                              return <TrendingDown className="h-4 w-4 text-red-600 flex-shrink-0" />
+                            } else {
+                              return <div className="h-4 w-4 flex-shrink-0" /> // Stable - no icon
+                            }
+                          })()}
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -981,9 +1131,17 @@ function TrafficChart({
 
 export default function SeoDashboard() {
   const { snapshots, tasks, competitors, loading, error, refetch } = useSeoData()
+  const location = useLocation()
   const [refreshing, setRefreshing] = useState(false)
   const [expandedCompetitors, setExpandedCompetitors] = useState<Set<number>>(new Set())
-  const [activeTab, setActiveTab] = useState<'overview' | 'page-health'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'page-health' | 'ai-visibility'>('overview')
+
+  // Auto-open AI visibility tab if coming from LLM page
+  useEffect(() => {
+    if (location.state?.fromLLM || location.pathname === '/llm') {
+      setActiveTab('ai-visibility')
+    }
+  }, [location])
   const [trafficData, setTrafficData] = useState<Array<{ date: string; impressions: number; clicks: number }>>([])
   const [loadingTraffic, setLoadingTraffic] = useState(true)
   const [eventPageData, setEventPageData] = useState<Map<string, Array<{ date: string; impressions: number; clicks: number }>>>(new Map())
@@ -1254,12 +1412,25 @@ export default function SeoDashboard() {
             <FileSearch className="h-4 w-4" />
             <span>Side-Diagnose</span>
           </button>
+          <button
+            onClick={() => setActiveTab('ai-visibility')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 ${
+              activeTab === 'ai-visibility'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Brain className="h-4 w-4" />
+            <span>AI synlighed</span>
+          </button>
         </nav>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'page-health' ? (
         <PageHealthTable />
+      ) : activeTab === 'ai-visibility' ? (
+        <AIVisibilityTab />
       ) : (
         <>
 
