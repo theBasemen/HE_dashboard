@@ -61,12 +61,25 @@ WHERE email = 'bruger@example.com';
 1. Gå til [Supabase Dashboard](https://app.supabase.com)
 2. Vælg dit projekt
 3. Gå til **Authentication** → **URL Configuration**
-4. Under **"Redirect URLs"**, tilføj følgende URLs:
-   - `http://localhost:5173/login` (for lokal udvikling med Vite)
-   - `http://localhost:3000/login` (hvis du bruger en anden port)
-   - `https://dit-domæne.netlify.app/login` (for production)
 
-**Bemærk:** Magic links bruger hash-fragmenter (`#access_token=...`) som håndteres automatisk af appen. Sørg for at redirect URL'en peger på `/login` siden.
+### A. Site URL
+**VIGTIGT:** Site URL skal være din **production URL**, ikke localhost!
+
+- **Site URL:** `https://himmelstrupdashboard.netlify.app` (eller din production URL)
+- Dette er den URL Supabase bruger som fallback hvis redirect URL'en ikke matcher
+- **Hvis Site URL er sat til localhost, vil alle magic links (også fra production) redirecte til localhost!**
+
+### B. Redirect URLs
+Under **"Redirect URLs"**, tilføj følgende URLs (med `/login` path):
+
+- `http://localhost:5173/login` (for lokal udvikling med Vite)
+- `http://localhost:3000/login` (hvis du bruger en anden port lokalt)
+- `https://himmelstrupdashboard.netlify.app/login` (for production - **VIGTIGT:** skal matche din production URL)
+
+**Bemærk:** 
+- Magic links bruger hash-fragmenter (`#access_token=...`) som håndteres automatisk af appen
+- Sørg for at redirect URL'en peger på `/login` siden
+- Hvis Site URL er sat til localhost, vil magic links fra production altid redirecte til localhost
 
 ## 3. Magic Link Login
 Brugere modtager en magic link via email når de:
