@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, Outlet } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -8,12 +8,13 @@ import {
   Clock,
   Calendar,
   Building2,
-  Users
+  Users,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
-interface DashboardLayoutProps {
-  children: React.ReactNode
-}
+// DashboardLayout no longer needs children prop - uses Outlet instead
 
 const navigation = [
   { name: 'Medarbejdere', href: '/admin/users', icon: Users },
@@ -23,11 +24,19 @@ const navigation = [
   { name: 'Årshjul', href: '/year-wheel', icon: Calendar },
 ]
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [logoError, setLogoError] = useState(false)
   const [mobileLogoError, setMobileLogoError] = useState(false)
   const location = useLocation()
+  const { user, signOut, userRole } = useAuth()
+
+  const getUserDisplayName = () => {
+    if (user?.user_metadata?.full_name) return user.user_metadata.full_name
+    if (user?.user_metadata?.name) return user.user_metadata.name
+    if (user?.email) return user.email.split('@')[0]
+    return 'Bruger'
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -78,7 +87,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1">
+          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.href
@@ -101,6 +110,32 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               )
             })}
           </nav>
+
+          {/* User Info Footer */}
+          <div className="px-4 py-4 border-t border-gray-200">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                <UserIcon className="h-4 w-4 text-primary-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {getUserDisplayName()}
+                </p>
+                {userRole && (
+                  <p className="text-xs text-gray-500 capitalize">
+                    {userRole === 'superadmin' ? 'Super Admin' : 'Admin'}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={signOut}
+              className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log ud</span>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -136,7 +171,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Page content */}
         <main className="p-4 lg:p-8">
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>

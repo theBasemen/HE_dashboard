@@ -1,5 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import DashboardLayout from './components/DashboardLayout'
+import LoginPage from './pages/LoginPage'
 import FinancePage from './pages/FinancePage'
 import SeoDashboard from './pages/SeoDashboard'
 import LLMPage from './pages/LLMPage'
@@ -10,19 +13,35 @@ import AdminUsersPage from './pages/AdminUsersPage'
 
 function App() {
   return (
-    <Router>
-      <DashboardLayout>
+    <AuthProvider>
+      <Router>
         <Routes>
-          <Route path="/" element={<FinancePage />} />
-          <Route path="/seo" element={<SeoDashboard />} />
-          <Route path="/llm" element={<LLMPage />} />
-          <Route path="/expenses" element={<ExpenseExplorer />} />
-          <Route path="/time-tracking" element={<TimeTrackingPage />} />
-          <Route path="/year-wheel" element={<YearWheelPage />} />
-          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/" element={<FinancePage />} />
+            <Route path="/seo" element={<SeoDashboard />} />
+            <Route path="/llm" element={<LLMPage />} />
+            <Route path="/expenses" element={<ExpenseExplorer />} />
+            <Route path="/time-tracking" element={<TimeTrackingPage />} />
+            <Route path="/year-wheel" element={<YearWheelPage />} />
+            <Route 
+              path="/admin/users" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminUsersPage />
+                </ProtectedRoute>
+              } 
+            />
+          </Route>
         </Routes>
-      </DashboardLayout>
-    </Router>
+      </Router>
+    </AuthProvider>
   )
 }
 
