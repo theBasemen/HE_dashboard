@@ -103,7 +103,7 @@ export default function LoginPage() {
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Log ind</h1>
             <p className="text-sm text-gray-600">
-              Du skal være inviteret via Supabase for at logge ind
+              Du skal have modtaget en invitation fra Himmelstrup Events for at kunne logge ind
             </p>
           </div>
 
@@ -150,7 +150,7 @@ export default function LoginPage() {
           {/* Info */}
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs text-blue-800">
-              <strong>Bemærk:</strong> Du skal være inviteret via Supabase Dashboard for at kunne logge ind. 
+              <strong>Bemærk:</strong> Du skal være inviteret fra Himmelstrup Events for at kunne logge ind. 
               Kontakt en administrator hvis du ikke har modtaget en invitation.
             </p>
           </div>
