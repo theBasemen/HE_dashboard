@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Clock, Calendar, AlertCircle, User, Plus, Building2, Briefcase, Trash2, X, Edit2, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -198,7 +198,6 @@ function DayModal({
 
   // Ensure arrays are valid
   const safeEntries = Array.isArray(entries) ? entries : []
-  const safeUsers = Array.isArray(users) ? users : []
   const safeProjects = Array.isArray(projects) ? projects : []
   const totalHours = safeEntries.reduce((sum, entry) => sum + (entry?.hours || 0), 0)
 
@@ -587,7 +586,6 @@ function MonthCalendar({
           const hasHours = hours > 0
           const isFullDay = hours >= 7.5
           const isPartialDay = hours > 0 && hours < 7.5
-          const dayEntries = employee.entriesByDate[date] || []
           const isSelected = selectedDate === date
 
           return (
@@ -795,12 +793,10 @@ export default function TimeTrackingPage() {
       // Note: id and created_at are NOT included - database should auto-generate them
     }
 
-    // Insert and select the created row to get the auto-generated id
-    const { data: insertedData, error: insertError } = await supabase
+    // Insert the new time entry
+    const { error: insertError } = await supabase
       .from('he_time_logs')
       .insert([entryData])
-      .select()
-      .single()
 
     if (insertError) {
       console.error('Insert error details:', insertError)
