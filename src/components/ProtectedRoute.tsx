@@ -9,6 +9,12 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user, loading, userRole } = useAuth()
+  const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true'
+
+  // Skip all auth checks if auth is disabled (dev mode)
+  if (disableAuth) {
+    return children ? <>{children}</> : <Outlet />
+  }
 
   if (loading) {
     return (

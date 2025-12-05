@@ -3,6 +3,7 @@ import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide
 import { fetchFinanceData, FinanceSnapshot, fetchFinanceRoadmap2026, FinanceRoadmap2026 } from '../services/api'
 import YearlyOverview from '../components/YearlyOverview'
 import FinanceRoadmap2026Component from '../components/FinanceRoadmap2026'
+import ProjectStatistics from '../components/ProjectStatistics'
 
 // FinancePage component - displays executive overview and yearly financial data
 export default function FinancePage() {
@@ -390,6 +391,9 @@ export default function FinancePage() {
 
       {/* Finance Roadmap 2026 */}
       <FinanceRoadmap2026Component />
+
+      {/* Project Statistics */}
+      <ProjectStatistics />
 
       {/* Yearly Financial Overview */}
       <YearlyOverview history={snapshot.history || []} />

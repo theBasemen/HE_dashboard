@@ -17,8 +17,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<'admin' | 'superadmin' | null>(null)
+  
+  const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true'
 
   useEffect(() => {
+    // If auth is disabled, set mock user immediately
+    if (disableAuth) {
+      const mockUser = {
+        id: 'dev-user-123',
+        email: 'dev@example.com',
+        created_at: new Date().toISOString(),
+        app_metadata: {},
+        user_metadata: { role: 'superadmin' },
+        aud: 'authenticated',
+        confirmation_sent_at: null,
+        recovery_sent_at: null,
+        email_confirmed_at: new Date().toISOString(),
+        invited_at: null,
+        action_link: null,
+        phone: null,
+        confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        role: 'authenticated',
+        updated_at: new Date().toISOString(),
+      } as User
+      
+      setUser(mockUser)
+      setUserRole('superadmin') // Give full access in dev mode
+      setLoading(false)
+      return
+    }
+
     // Handle hash fragment from magic link redirect
     const handleHashFragment = async () => {
       if (window.location.hash) {
@@ -74,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription?.unsubscribe()
     }
-  }, [])
+  }, [disableAuth])
 
   const fetchUserRole = async () => {
     if (!supabase) return
@@ -113,6 +142,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    if (disableAuth) {
+      // In dev mode, just clear the mock user
+      setUser(null)
+      setSession(null)
+      setUserRole(null)
+      return
+    }
     await supabase?.auth.signOut()
     setUser(null)
     setSession(null)

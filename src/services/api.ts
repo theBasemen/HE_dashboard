@@ -132,6 +132,101 @@ async function fetchYearlyHistory(year: number): Promise<MonthlyHistory[]> {
 }
 
 /**
+ * Project statistics data structure
+ */
+export interface ProjectStatistics {
+  project_id: string
+  project_name: string
+  project_color: string | null
+  project_type: string | null
+  expected_turnover: number
+  expected_costs: number
+  registered_hours: number
+  expected_result: number
+}
+
+/**
+ * Fetches project statistics from he_time_projects and he_time_logs
+ * Returns statistics for all projects including expected turnover, expected costs,
+ * registered hours, and expected result
+ */
+export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
+  if (!supabase) {
+    console.error('Supabase client not configured')
+    return []
+  }
+
+  try {
+    // Fetch all projects - use * to get all columns in case expected_turnover/expected_costs don't exist yet
+    const { data: projects, error: projectsError } = await supabase
+      .from('he_time_projects')
+      .select('*')
+      .eq('is_hidden', false)
+      .order('name', { ascending: true })
+
+    if (projectsError) {
+      console.error('Error fetching projects:', projectsError)
+      return []
+    }
+
+    if (!projects || projects.length === 0) {
+      return []
+    }
+
+    // Fetch all time logs
+    const { data: timeLogs, error: logsError } = await supabase
+      .from('he_time_logs')
+      .select('project_id, hours')
+
+    if (logsError) {
+      console.error('Error fetching time logs:', logsError)
+      // Continue even if logs fail, just use 0 hours
+    }
+
+    // Calculate total hours per project
+    const hoursByProject: Record<string, number> = {}
+    if (timeLogs) {
+      timeLogs.forEach(log => {
+        if (log.project_id) {
+          hoursByProject[log.project_id] = (hoursByProject[log.project_id] || 0) + (log.hours || 0)
+        }
+      })
+    }
+
+    // Build statistics for each project, filtering out internal projects
+    const statistics: ProjectStatistics[] = projects
+      .filter((project: any) => {
+        // Filter out internal projects - only show customer projects
+        const projectType = project.type
+        return projectType !== 'internal' && projectType !== 'Internt'
+      })
+      .map((project: any) => {
+        // Handle both expected_cost and expected_costs column names
+        const expectedTurnover = (project.expected_turnover ?? 0) as number
+        const expectedCosts = (project.expected_cost ?? project.expected_costs ?? 0) as number
+        const registeredHours = hoursByProject[project.id] || 0
+        const expectedResult = expectedTurnover - expectedCosts
+
+        return {
+          project_id: project.id,
+          project_name: project.name,
+          project_color: project.color || null,
+          project_type: project.type || null,
+          expected_turnover: expectedTurnover,
+          expected_costs: expectedCosts,
+          registered_hours: registeredHours,
+          expected_result: expectedResult,
+        }
+      })
+
+    return statistics
+  } catch (error) {
+    console.error('Failed to fetch project statistics:', error)
+    return []
+  }
+}
+
+/**
  * Fetches the latest finance snapshot from Supabase
  * Returns the single most recent row from finance_snapshots table
  * Also fetches historical data from finance_history_years table
