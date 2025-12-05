@@ -63,7 +63,6 @@ function DayModal({
   date,
   employee,
   entries,
-  users,
   projects,
   onAddEntry,
   onUpdateEntry,
@@ -73,7 +72,6 @@ function DayModal({
   date: string
   employee: EmployeeData
   entries: TimeLog[]
-  users: TimeUser[]
   projects: Project[]
   onAddEntry?: (entry: { userId: string; projectId: string; date: string; hours: number }) => Promise<void>
   onUpdateEntry?: (entryId: number, updates: { projectId: string; hours: number }) => Promise<void>
@@ -473,7 +471,6 @@ function MonthCalendar({
   employee, 
   year, 
   month,
-  users,
   projects,
   onAddEntry,
   onUpdateEntry,
@@ -482,7 +479,6 @@ function MonthCalendar({
   employee: EmployeeData
   year: number
   month: number
-  users: TimeUser[]
   projects: Project[]
   onAddEntry?: (entry: { userId: string; projectId: string; date: string; hours: number }) => Promise<void>
   onUpdateEntry?: (entryId: number, updates: { projectId: string; hours: number }) => Promise<void>
@@ -636,12 +632,11 @@ function MonthCalendar({
       </div>
 
       {/* Day Modal */}
-      {selectedDate && employee && Array.isArray(users) && Array.isArray(projects) && (
+      {selectedDate && employee && Array.isArray(projects) && (
         <DayModal
           date={selectedDate}
           employee={employee}
           entries={Array.isArray(employee.entriesByDate[selectedDate]) ? employee.entriesByDate[selectedDate] : []}
-          users={users}
           projects={projects}
           onAddEntry={onAddEntry}
           onUpdateEntry={onUpdateEntry}
@@ -1373,7 +1368,6 @@ export default function TimeTrackingPage() {
               employee={employee}
               year={currentYear}
               month={currentMonth}
-              users={users}
               projects={projects}
               onAddEntry={handleAddTimeEntry}
               onUpdateEntry={handleUpdateEntry}
