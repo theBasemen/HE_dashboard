@@ -10,24 +10,45 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams()
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase?.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate('/')
-      }
-    })
-
-    // Handle OAuth callback or magic link
+    // Handle auth callback from magic link (hash fragment)
     const handleAuthCallback = async () => {
       try {
-        const { data, error } = await supabase?.auth.getSession() || { data: { session: null }, error: null }
+        // Check if there's a hash fragment with auth tokens
+        if (window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1))
+          const accessToken = hashParams.get('access_token')
+          const refreshToken = hashParams.get('refresh_token')
+          
+          if (accessToken && refreshToken) {
+            // Exchange tokens for session
+            const { data, error } = await supabase?.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            }) || { data: { session: null }, error: null }
+            
+            if (error) {
+              setError('Fejl ved login: ' + error.message)
+              return
+            }
+
+            if (data?.session) {
+              // Clear hash from URL
+              window.history.replaceState(null, '', window.location.pathname)
+              navigate('/')
+              return
+            }
+          }
+        }
+
+        // Fallback: Check for existing session
+        const { data: { session }, error } = await supabase?.auth.getSession() || { data: { session: null }, error: null }
         
         if (error) {
           setError('Fejl ved login: ' + error.message)
           return
         }
 
-        if (data?.session) {
+        if (session) {
           navigate('/')
         }
       } catch (err: any) {
@@ -35,9 +56,16 @@ export default function LoginPage() {
       }
     }
 
-    // Check for hash fragment (OAuth callback) or query params (magic link)
+    // Check for hash fragment (magic link callback) or query params
     if (window.location.hash || searchParams.get('token')) {
       handleAuthCallback()
+    } else {
+      // Check if user is already logged in
+      supabase?.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          navigate('/')
+        }
+      })
     }
   }, [navigate, searchParams])
 
@@ -56,10 +84,12 @@ export default function LoginPage() {
     }
 
     try {
+      // Use current origin and path to handle redirect properly
+      const redirectUrl = `${window.location.origin}/login`
       const { error } = await supabase?.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: redirectUrl,
         },
       }) || { error: null }
 

@@ -54,12 +54,28 @@ SET raw_user_meta_data = jsonb_set(
 WHERE email = 'bruger@example.com';
 ```
 
-## 2. Magic Link Login
+## 2. Konfigurer Redirect URLs
+
+**VIGTIGT:** Du skal konfigurere redirect URLs i Supabase Dashboard for at magic links virker korrekt.
+
+1. Gå til [Supabase Dashboard](https://app.supabase.com)
+2. Vælg dit projekt
+3. Gå til **Authentication** → **URL Configuration**
+4. Under **"Redirect URLs"**, tilføj følgende URLs:
+   - `http://localhost:5173/login` (for lokal udvikling med Vite)
+   - `http://localhost:3000/login` (hvis du bruger en anden port)
+   - `https://dit-domæne.netlify.app/login` (for production)
+
+**Bemærk:** Magic links bruger hash-fragmenter (`#access_token=...`) som håndteres automatisk af appen. Sørg for at redirect URL'en peger på `/login` siden.
+
+## 3. Magic Link Login
 Brugere modtager en magic link via email når de:
 - Bliver inviteret via Supabase Dashboard
 - Anmoder om magic link på login-siden
 
-## 3. Brugerroller
+Magic link'en redirecter til `/login` siden hvor hash-fragmentet automatisk håndteres og brugeren logges ind.
+
+## 4. Brugerroller
 
 ### Admin
 - Kan se alle sider
@@ -71,12 +87,12 @@ Brugere modtager en magic link via email når de:
 - Kan tilgå fremtidige superadmin-specifikke features
 - Skal sættes eksplicit i user metadata
 
-## 4. Environment Variables
+## 5. Environment Variables
 Sørg for at have følgende environment variables sat:
 - `VITE_SUPABASE_URL` - Din Supabase projekt URL
 - `VITE_SUPABASE_KEY` - Din Supabase anon/public key (IKKE service_role key!)
 
-## 5. Test
+## 6. Test
 1. Opret en test-bruger via Supabase Dashboard
 2. Sæt rolle til `admin` eller `superadmin` i user metadata
 3. Send magic link til brugeren

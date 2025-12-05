@@ -19,14 +19,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<'admin' | 'superadmin' | null>(null)
 
   useEffect(() => {
-    // Get initial session
-    supabase?.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchUserRole()
+    // Handle hash fragment from magic link redirect
+    const handleHashFragment = async () => {
+      if (window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        
+        if (accessToken && refreshToken) {
+          try {
+            const { data, error } = await supabase?.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            }) || { data: { session: null }, error: null }
+            
+            if (!error && data?.session) {
+              // Clear hash from URL
+              window.history.replaceState(null, '', window.location.pathname)
+            }
+          } catch (err) {
+            console.error('Error handling hash fragment:', err)
+          }
+        }
       }
-      setLoading(false)
+    }
+
+    // Handle hash fragment first
+    handleHashFragment().then(() => {
+      // Then get initial session
+      supabase?.auth.getSession().then(({ data: { session } }) => {
+        setSession(session)
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchUserRole()
+        }
+        setLoading(false)
+      })
     })
 
     // Listen for auth changes
