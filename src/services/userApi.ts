@@ -8,6 +8,8 @@ export interface TimeUser {
   color: string // CSS classes f.eks. 'bg-blue-100 text-blue-700'
   is_active: boolean
   avatar_url?: string | null // URL to avatar image in Supabase Storage
+  salary?: number | null // Monthly salary
+  hourly_rate?: number | null // Hourly rate / kostpris
 }
 
 /**
@@ -146,6 +148,7 @@ export async function createUser(user: {
   initials: string
   color: string
   avatar_url?: string | null
+  salary?: number | null
 }): Promise<TimeUser | null> {
   if (!supabase) {
     console.warn('Supabase client not configured')
@@ -162,6 +165,10 @@ export async function createUser(user: {
     
     if (user.avatar_url) {
       insertData.avatar_url = user.avatar_url
+    }
+    
+    if (user.salary !== undefined && user.salary !== null) {
+      insertData.salary = user.salary
     }
 
     const { data, error } = await supabase
@@ -193,6 +200,7 @@ export async function updateUser(
     color?: string
     is_active?: boolean
     avatar_url?: string | null
+    salary?: number | null
   }
 ): Promise<TimeUser | null> {
   if (!supabase) {
@@ -207,6 +215,7 @@ export async function updateUser(
     if (updates.color !== undefined) updateData.color = updates.color
     if (updates.is_active !== undefined) updateData.is_active = updates.is_active
     if (updates.avatar_url !== undefined) updateData.avatar_url = updates.avatar_url
+    if (updates.salary !== undefined) updateData.salary = updates.salary
 
     const { data, error } = await supabase
       .from('he_time_users')

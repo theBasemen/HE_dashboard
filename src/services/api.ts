@@ -141,7 +141,7 @@ export interface ProjectStatistics {
   project_type: string | null
   expected_turnover: number
   expected_costs: number
-  registered_hours: number
+  internal_cost: number // Intern kostpris = sum(hours * hourly_rate)
   expected_result: number
 }
 
@@ -173,22 +173,44 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
       return []
     }
 
-    // Fetch all time logs
+    // Fetch all time logs with user_id
     const { data: timeLogs, error: logsError } = await supabase
       .from('he_time_logs')
-      .select('project_id, hours')
+      .select('project_id, hours, user_id')
 
     if (logsError) {
       console.error('Error fetching time logs:', logsError)
-      // Continue even if logs fail, just use 0 hours
+      // Continue even if logs fail, just use 0 cost
     }
 
-    // Calculate total hours per project
-    const hoursByProject: Record<string, number> = {}
+    // Fetch all users with hourly_rate
+    const { data: users, error: usersError } = await supabase
+      .from('he_time_users')
+      .select('id, hourly_rate')
+
+    if (usersError) {
+      console.error('Error fetching users:', usersError)
+      // Continue even if users fail, just use 0 cost
+    }
+
+    // Create a map of user_id -> hourly_rate
+    const userRateMap = new Map<string, number>()
+    if (users) {
+      users.forEach((user: any) => {
+        if (user.id && user.hourly_rate !== null && user.hourly_rate !== undefined) {
+          userRateMap.set(user.id, user.hourly_rate)
+        }
+      })
+    }
+
+    // Calculate internal cost per project (sum of hours * hourly_rate for each log)
+    const internalCostByProject: Record<string, number> = {}
     if (timeLogs) {
       timeLogs.forEach(log => {
-        if (log.project_id) {
-          hoursByProject[log.project_id] = (hoursByProject[log.project_id] || 0) + (log.hours || 0)
+        if (log.project_id && log.user_id && log.hours) {
+          const hourlyRate = userRateMap.get(log.user_id) || 0
+          const cost = log.hours * hourlyRate
+          internalCostByProject[log.project_id] = (internalCostByProject[log.project_id] || 0) + cost
         }
       })
     }
@@ -204,7 +226,7 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
         // Handle both expected_cost and expected_costs column names
         const expectedTurnover = (project.expected_turnover ?? 0) as number
         const expectedCosts = (project.expected_cost ?? project.expected_costs ?? 0) as number
-        const registeredHours = hoursByProject[project.id] || 0
+        const internalCost = internalCostByProject[project.id] || 0
         const expectedResult = expectedTurnover - expectedCosts
 
         return {
@@ -214,7 +236,7 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
           project_type: project.type || null,
           expected_turnover: expectedTurnover,
           expected_costs: expectedCosts,
-          registered_hours: registeredHours,
+          internal_cost: internalCost,
           expected_result: expectedResult,
         }
       })
