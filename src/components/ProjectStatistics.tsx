@@ -43,8 +43,8 @@ export default function ProjectStatistics() {
           <div className="h-8 bg-gray-200 rounded w-64 animate-pulse mb-2"></div>
           <div className="h-5 bg-gray-200 rounded w-96 animate-pulse"></div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
             <div key={i} className="h-48 bg-gray-200 rounded-lg animate-pulse"></div>
           ))}
         </div>
@@ -92,7 +92,7 @@ export default function ProjectStatistics() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {statistics.map((project) => {
           const isPositive = project.expected_result >= 0
           const grossMargin = calculateGrossMargin(project.expected_turnover, project.expected_costs)
@@ -137,12 +137,12 @@ export default function ProjectStatistics() {
                 {/* Omsætning - Bar Chart */}
                 <div className="group relative">
                   <div className="flex items-center space-x-2 mb-1">
-                    <DollarSign className="h-3 w-3 text-blue-500" />
+                    <DollarSign className="h-3 w-3 text-green-500" />
                     <span className="text-xs text-gray-600">Omsætning</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-blue-500 h-full rounded-full transition-all"
+                      className="bg-green-500 h-full rounded-full transition-all"
                       style={{ width: `${Math.min(turnoverPercent, 100)}%` }}
                     />
                   </div>
@@ -156,19 +156,19 @@ export default function ProjectStatistics() {
                 {/* Omkostninger - Stacked Bar Chart */}
                 <div className="group relative">
                   <div className="flex items-center space-x-2 mb-1">
-                    <TrendingDown className="h-3 w-3 text-orange-500" />
+                    <TrendingDown className="h-3 w-3 text-red-500" />
                     <span className="text-xs text-gray-600">Omkostninger</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden flex">
                     {project.expected_costs > 0 && (
                       <div
-                        className="bg-orange-500 h-full transition-all"
+                        className="bg-red-500 h-full transition-all"
                         style={{ width: `${Math.min(expectedCostsPercent, 100)}%` }}
                       />
                     )}
                     {project.internal_cost > 0 && (
                       <div
-                        className="bg-purple-500 h-full transition-all"
+                        className="bg-yellow-500 h-full transition-all"
                         style={{ width: `${Math.min(internalCostPercent, 100)}%` }}
                       />
                     )}
@@ -176,11 +176,11 @@ export default function ProjectStatistics() {
                   {/* Tooltip */}
                   <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 pointer-events-none">
                     <div className="flex items-center space-x-2 mb-1">
-                      <div className="w-2 h-2 bg-orange-500 rounded"></div>
+                      <div className="w-2 h-2 bg-red-500 rounded"></div>
                       <span>Forventede: {formatCurrency(project.expected_costs)}</span>
                     </div>
                     <div className="flex items-center space-x-2 mb-1">
-                      <div className="w-2 h-2 bg-purple-500 rounded"></div>
+                      <div className="w-2 h-2 bg-yellow-500 rounded"></div>
                       <span>Intern: {formatCurrency(project.internal_cost)}</span>
                     </div>
                     <div className="font-semibold pt-1 border-t border-gray-700">

@@ -227,7 +227,7 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
         const expectedTurnover = (project.expected_turnover ?? 0) as number
         const expectedCosts = (project.expected_cost ?? project.expected_costs ?? 0) as number
         const internalCost = internalCostByProject[project.id] || 0
-        const expectedResult = expectedTurnover - expectedCosts
+        const expectedResult = expectedTurnover - expectedCosts - internalCost
 
         return {
           project_id: project.id,
