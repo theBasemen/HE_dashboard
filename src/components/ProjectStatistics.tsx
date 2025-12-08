@@ -77,11 +77,7 @@ export default function ProjectStatistics() {
     return ((turnover - costs) / turnover) * 100
   }
 
-  // Find max value for normalization - use the same scale for both turnover and costs
-  const maxValue = Math.max(
-    ...statistics.map(p => Math.max(p.expected_turnover, p.expected_costs + p.internal_cost)),
-    1
-  )
+  // We'll normalize per project so the largest value fills 100% of the height
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
@@ -98,12 +94,14 @@ export default function ProjectStatistics() {
           const grossMargin = calculateGrossMargin(project.expected_turnover, project.expected_costs)
           const isGoodMargin = grossMargin >= 30
           
-          // Calculate percentages for bars - use same max value for comparison
-          const turnoverPercent = maxValue > 0 ? (project.expected_turnover / maxValue) * 100 : 0
+          // Calculate local max value for this project (the largest between turnover and total costs)
           const totalCosts = project.expected_costs + project.internal_cost
-          const totalCostsPercent = maxValue > 0 ? (totalCosts / maxValue) * 100 : 0
-          const expectedCostsPercent = totalCosts > 0 ? (project.expected_costs / totalCosts) * totalCostsPercent : 0
-          const internalCostPercent = totalCosts > 0 ? (project.internal_cost / totalCosts) * totalCostsPercent : 0
+          const localMaxValue = Math.max(project.expected_turnover, totalCosts, 1)
+          
+          // Calculate percentages - the largest value will fill 100% of the height
+          const turnoverPercent = localMaxValue > 0 ? (project.expected_turnover / localMaxValue) * 100 : 0
+          const expectedCostsPercent = localMaxValue > 0 ? (project.expected_costs / localMaxValue) * 100 : 0
+          const internalCostPercent = localMaxValue > 0 ? (project.internal_cost / localMaxValue) * 100 : 0
 
           return (
             <div
@@ -133,60 +131,81 @@ export default function ProjectStatistics() {
               </div>
 
               {/* Metrics Grid */}
-              <div className="space-y-3">
-                {/* Omsætning - Bar Chart */}
-                <div className="group relative">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <DollarSign className="h-3 w-3 text-green-500" />
-                    <span className="text-xs text-gray-600">Omsætning</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-green-500 h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(turnoverPercent, 100)}%` }}
-                    />
-                  </div>
-                  {/* Tooltip */}
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap pointer-events-none">
-                    {formatCurrency(project.expected_turnover)}
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                  </div>
-                </div>
-
-                {/* Omkostninger - Stacked Bar Chart */}
-                <div className="group relative">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <TrendingDown className="h-3 w-3 text-red-500" />
-                    <span className="text-xs text-gray-600">Omkostninger</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden flex">
+              <div className="space-y-4">
+                {/* Combined Chart - Omsætning and Omkostninger in same coordinate system */}
+                <div className="relative overflow-visible">
+                  {/* Icons row */}
+                  <div className="flex items-center justify-center gap-1 mb-2">
+                    <div className="flex-1 flex justify-center">
+                      <DollarSign className="h-4 w-4" style={{ color: '#10b981' }} />
+                    </div>
                     {project.expected_costs > 0 && (
-                      <div
-                        className="bg-red-500 h-full transition-all"
-                        style={{ width: `${Math.min(expectedCostsPercent, 100)}%` }}
-                      />
+                      <div className="flex-1 flex justify-center">
+                        <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
+                      </div>
                     )}
                     {project.internal_cost > 0 && (
-                      <div
-                        className="bg-yellow-500 h-full transition-all"
-                        style={{ width: `${Math.min(internalCostPercent, 100)}%` }}
-                      />
+                      <div className="flex-1 flex justify-center">
+                        <TrendingDown className="h-4 w-4 text-yellow-500" />
+                      </div>
                     )}
                   </div>
-                  {/* Tooltip */}
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 pointer-events-none">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <div className="w-2 h-2 bg-red-500 rounded"></div>
-                      <span>Forventede: {formatCurrency(project.expected_costs)}</span>
+                  {/* Bars row with tooltips */}
+                  <div className="relative overflow-visible pb-8">
+                    <div className="flex items-end justify-center gap-1 h-20 bg-gray-100 rounded-t">
+                      {/* Omsætning søjle */}
+                      <div className="flex-1 h-full flex items-end relative group/bar1 overflow-visible">
+                        <div className="w-full h-full flex items-end overflow-hidden rounded-t">
+                          <div
+                            className="w-full rounded-t transition-all"
+                            style={{ 
+                              height: `${Math.min(turnoverPercent, 100)}%`,
+                              background: 'linear-gradient(to bottom, rgba(16, 185, 129, 0.8) 5%, rgba(16, 185, 129, 0.6) 95%)'
+                            }}
+                          />
+                        </div>
+                        {/* Tooltip for turnover */}
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/bar1:block z-20 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap pointer-events-none" style={{ bottom: 'calc(100% + 0.5rem)' }}>
+                          {formatCurrency(project.expected_turnover)}
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                      {/* Forventede omkostninger søjle */}
+                      {project.expected_costs > 0 && (
+                        <div className="flex-1 h-full flex items-end relative group/bar2 overflow-visible">
+                          <div className="w-full h-full flex items-end overflow-hidden rounded-t">
+                            <div
+                              className="w-full rounded-t transition-all"
+                              style={{ 
+                                height: `${Math.min(expectedCostsPercent, 100)}%`,
+                                background: 'linear-gradient(to bottom, rgba(239, 68, 68, 0.8) 5%, rgba(239, 68, 68, 0.6) 95%)'
+                              }}
+                            />
+                          </div>
+                          {/* Tooltip for expected costs */}
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/bar2:block z-20 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap pointer-events-none" style={{ bottom: 'calc(100% + 0.5rem)' }}>
+                            {formatCurrency(project.expected_costs)}
+                            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Interne omkostninger søjle */}
+                      {project.internal_cost > 0 && (
+                        <div className="flex-1 h-full flex items-end relative group/bar3 overflow-visible">
+                          <div className="w-full h-full flex items-end overflow-hidden rounded-t">
+                            <div
+                              className="bg-yellow-500 w-full rounded-t transition-all"
+                              style={{ height: `${Math.min(internalCostPercent, 100)}%` }}
+                            />
+                          </div>
+                          {/* Tooltip for internal costs */}
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/bar3:block z-20 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap pointer-events-none" style={{ bottom: 'calc(100% + 0.5rem)' }}>
+                            {formatCurrency(project.internal_cost)}
+                            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center space-x-2 mb-1">
-                      <div className="w-2 h-2 bg-yellow-500 rounded"></div>
-                      <span>Intern: {formatCurrency(project.internal_cost)}</span>
-                    </div>
-                    <div className="font-semibold pt-1 border-t border-gray-700">
-                      Total: {formatCurrency(project.expected_costs + project.internal_cost)}
-                    </div>
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                   </div>
                 </div>
 
