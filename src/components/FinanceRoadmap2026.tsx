@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react'
 import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { fetchFinanceRoadmap2026, FinanceRoadmap2026 as FinanceRoadmap2026Data } from '../services/api'
 
-export default function FinanceRoadmap2026() {
+interface FinanceRoadmap2026Props {
+  overrideBreakEven?: number | null
+}
+
+export default function FinanceRoadmap2026({ overrideBreakEven = null }: FinanceRoadmap2026Props) {
   const [data, setData] = useState<FinanceRoadmap2026Data[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,12 +66,14 @@ export default function FinanceRoadmap2026() {
   const dataMap = new Map(data.map(item => [item.month_id, item]))
 
   // Merge all months with existing data, filling missing months with zeros
+  // Apply override break-even if provided
   const completeData = allMonths.map(month => {
     const existingData = dataMap.get(month.month_id)
     if (existingData) {
       return {
         ...existingData,
         month_short: month.month_short,
+        break_even_point: overrideBreakEven !== null ? overrideBreakEven : (existingData.break_even_point || 0),
       }
     }
     // Return empty data for missing months
@@ -79,7 +85,7 @@ export default function FinanceRoadmap2026() {
       expected_costs: 0,
       expected_result: 0,
       budget_target: 0,
-      break_even_point: 0,
+      break_even_point: overrideBreakEven !== null ? overrideBreakEven : 0,
       actual_turnover: 0,
       actual_costs: 0,
     }
@@ -87,23 +93,26 @@ export default function FinanceRoadmap2026() {
 
   // Calculate totals for summary cards (only from months with data)
   // For total result, we need to subtract break_even_point from monthly costs
+  // Use override break-even if provided
   const totals = data.reduce(
     (acc, item) => {
-      // Calculate monthly result accounting for break-even point
-      const monthlyResult = (item.expected_turnover || 0) - (item.expected_costs || 0) - (item.break_even_point || 0)
+      // Calculate monthly result accounting for break-even point (use override if provided)
+      const breakEvenToUse = overrideBreakEven !== null ? overrideBreakEven : (item.break_even_point || 0)
+      const monthlyResult = (item.expected_turnover || 0) - (item.expected_costs || 0) - breakEvenToUse
       
       return {
         totalTurnover: acc.totalTurnover + (item.expected_turnover || 0),
         totalCosts: acc.totalCosts + (item.expected_costs || 0),
         totalResult: acc.totalResult + monthlyResult,
-        totalBurnRate: acc.totalBurnRate + (item.expected_costs || 0) + (item.break_even_point || 0), // Total costs including break-even
+        totalBurnRate: acc.totalBurnRate + (item.expected_costs || 0) + breakEvenToUse, // Total costs including break-even
       }
     },
     { totalTurnover: 0, totalCosts: 0, totalResult: 0, totalBurnRate: 0 }
   )
 
   // Get break-even point (should be the same for all months, use first available)
-  const breakEvenPoint = data.length > 0 ? (data[0].break_even_point || 0) : 0
+  // Use override value if provided, otherwise use data from database
+  const breakEvenPoint = overrideBreakEven !== null ? overrideBreakEven : (data.length > 0 ? (data[0].break_even_point || 0) : 0)
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -318,11 +327,18 @@ export default function FinanceRoadmap2026() {
 
           {/* Forventet burn-rate */}
           <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
-            <p className="text-xs font-medium text-gray-600 mb-2">Faste omkostninger</p>
+            <p className="text-xs font-medium text-gray-600 mb-2">
+              Faste omkostninger {overrideBreakEven !== null && <span className="text-blue-600">(scenarie)</span>}
+            </p>
             <p className="text-2xl font-bold text-gray-900">
               {formatNumber(breakEvenPoint / 1000000)}
             </p>
             <p className="text-xs text-gray-500 mt-1">mio. kr. / mdr.</p>
+            {overrideBreakEven !== null && data.length > 0 && data[0].break_even_point !== overrideBreakEven && (
+              <p className="text-[10px] text-gray-400 mt-1 line-through">
+                Faktisk: {formatNumber((data[0].break_even_point || 0) / 1000000)}
+              </p>
+            )}
           </div>
 
           {/* Forventet Resultat */}
