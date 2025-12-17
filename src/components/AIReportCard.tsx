@@ -7,8 +7,7 @@ import {
   Bot, 
   Globe,
   Target,
-  ArrowRight,
-  CheckCircle
+  ArrowRight
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
