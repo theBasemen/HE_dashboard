@@ -1713,11 +1713,6 @@ export default function SeoDashboard() {
 
       {/* AI Visibility Section */}
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">AI Synlighed</h2>
-          <p className="text-gray-600">Strategisk rapport baseret på LLM evaluering</p>
-        </div>
-        
         <AIReportCard />
         
         <AIEvaluationTable />
