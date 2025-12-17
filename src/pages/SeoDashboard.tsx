@@ -35,6 +35,8 @@ import {
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
+import AIReportCard from '../components/AIReportCard'
+import AIEvaluationTable from '../components/AIEvaluationTable'
 
 // TypeScript interfaces matching Supabase tables
 interface SeoSnapshot {
@@ -1793,6 +1795,18 @@ export default function SeoDashboard() {
       </div>
         </>
       )}
+
+      {/* AI Visibility Section */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">AI Synlighed</h2>
+          <p className="text-gray-600">Strategisk rapport baseret på LLM evaluering</p>
+        </div>
+        
+        <AIReportCard />
+        
+        <AIEvaluationTable />
+      </div>
     </div>
   )
 }

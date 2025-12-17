@@ -9,7 +9,21 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
+  // Check if auth is disabled
+  const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true'
+  
+  // Debug: Log the environment variable value
   useEffect(() => {
+    console.log('VITE_DISABLE_AUTH:', import.meta.env.VITE_DISABLE_AUTH)
+    console.log('disableAuth:', disableAuth)
+  }, [disableAuth])
+
+  useEffect(() => {
+    // If auth is disabled, redirect to dashboard immediately
+    if (disableAuth) {
+      navigate('/', { replace: true })
+      return
+    }
     // Handle auth callback from magic link (hash fragment)
     const handleAuthCallback = async () => {
       try {
@@ -104,6 +118,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // If auth is disabled, don't render login page
+  if (disableAuth) {
+    return null
   }
 
   return (
