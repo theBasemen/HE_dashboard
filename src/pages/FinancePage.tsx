@@ -289,7 +289,6 @@ export default function FinancePage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col h-full overflow-visible">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-gray-900 mb-1">Likviditetsberedskab</h2>
-            <p className="text-xs text-gray-600">Kritisk overlevelsesmetrik</p>
           </div>
 
           {/* Calculation Layout */}
