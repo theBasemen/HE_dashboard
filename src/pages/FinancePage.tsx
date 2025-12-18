@@ -375,32 +375,6 @@ export default function FinancePage() {
               </span>
             </div>
           </div>
-
-          {/* Visual: Progress Bar */}
-          <div className="mt-3">
-            <div className="h-5 bg-gray-200 rounded-full overflow-hidden flex">
-              <div 
-                className="bg-green-500 h-full flex items-center justify-end pr-1.5"
-                style={{ 
-                  width: `${Math.min(100, Math.max(0, ((snapshot.cash_on_hand + (snapshot.receivables || 0)) / Math.max(1, (snapshot.cash_on_hand + (snapshot.receivables || 0) + Math.abs(netLiquidity)))) * 100))}%` 
-                }}
-              >
-                {netLiquidity >= 0 && (
-                  <span className="text-[10px] font-semibold text-white">Buffer</span>
-                )}
-              </div>
-              {netLiquidity < 0 && (
-                <div 
-                  className="bg-red-500 h-full flex items-center pl-1.5"
-                  style={{ 
-                    width: `${Math.min(100, Math.abs(netLiquidity) / Math.max(1, snapshot.cash_on_hand + (snapshot.receivables || 0)) * 100)}%` 
-                  }}
-                >
-                  <span className="text-[10px] font-semibold text-white">Underskud</span>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Zone C: Operational Health (KPI Grid) */}
