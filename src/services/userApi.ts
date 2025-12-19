@@ -69,6 +69,28 @@ export async function fetchAllUsers(): Promise<TimeUser[]> {
 }
 
 /**
+ * Recalculate hourly rates for all active employees
+ * This should be called after changes to salary or is_active status
+ */
+async function recalculateHourlyRates(): Promise<void> {
+  if (!supabase) {
+    console.warn('Supabase client not configured')
+    return
+  }
+
+  try {
+    const { error } = await supabase.rpc('recalculate_hourly_rates')
+    if (error) {
+      console.error('Error recalculating hourly rates:', error)
+      // Don't throw - this is a background operation
+    }
+  } catch (err) {
+    console.error('Error recalculating hourly rates:', err)
+    // Don't throw - this is a background operation
+  }
+}
+
+/**
  * Upload avatar image to Supabase Storage
  */
 export async function uploadAvatar(file: File, userId: string): Promise<string | null> {
@@ -182,6 +204,11 @@ export async function createUser(user: {
       throw error
     }
 
+    // Recalculate hourly rates if salary was set
+    if (user.salary !== undefined && user.salary !== null) {
+      await recalculateHourlyRates()
+    }
+
     return data
   } catch (err) {
     console.error('Error creating user:', err)
@@ -229,6 +256,11 @@ export async function updateUser(
       throw error
     }
 
+    // Recalculate hourly rates if salary or is_active changed
+    if (updates.salary !== undefined || updates.is_active !== undefined) {
+      await recalculateHourlyRates()
+    }
+
     return data
   } catch (err) {
     console.error('Error updating user:', err)
@@ -256,6 +288,9 @@ export async function deactivateUser(userId: string): Promise<boolean> {
       throw error
     }
 
+    // Recalculate hourly rates for remaining active employees
+    await recalculateHourlyRates()
+
     return true
   } catch (err) {
     console.error('Error deactivating user:', err)
@@ -282,6 +317,9 @@ export async function activateUser(userId: string): Promise<boolean> {
       console.error('Error activating user:', error)
       throw error
     }
+
+    // Recalculate hourly rates now that employee is active again
+    await recalculateHourlyRates()
 
     return true
   } catch (err) {
