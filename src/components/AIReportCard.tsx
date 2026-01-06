@@ -75,12 +75,6 @@ export default function AIReportCard() {
     fetchReports()
   }, [])
 
-  const getScoreColor = (score: number): string => {
-    if (score < 4) return 'text-red-600 bg-red-50 border-red-200'
-    if (score < 7) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
-    return 'text-green-600 bg-green-50 border-green-200'
-  }
-
   const getScoreIcon = (score: number) => {
     if (score < 4) return <AlertTriangle className="h-4 w-4" />
     if (score < 7) return <TrendingUp className="h-4 w-4" />
