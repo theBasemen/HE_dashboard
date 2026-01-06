@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Calculator, X } from 'lucide-react'
+import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Calculator, X, RefreshCw, Loader2 } from 'lucide-react'
 import { fetchFinanceData, FinanceSnapshot, fetchFinanceRoadmap2026, FinanceRoadmap2026 } from '../services/api'
 import YearlyOverview from '../components/YearlyOverview'
 import FinanceRoadmap2026Component from '../components/FinanceRoadmap2026'
@@ -11,35 +11,76 @@ export default function FinancePage() {
   const [roadmap2026, setRoadmap2026] = useState<FinanceRoadmap2026[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updating, setUpdating] = useState(false)
   
   // Scenario override values
   const [overrideExpectedRevenue2026, setOverrideExpectedRevenue2026] = useState<string>('')
   const [overrideBreakEven, setOverrideBreakEven] = useState<string>('')
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const [financeData, roadmapData] = await Promise.all([
-          fetchFinanceData(),
-          fetchFinanceRoadmap2026()
-        ])
-        if (!financeData) {
-          setError('Ingen data tilgængelig')
-        } else {
-          setSnapshot(financeData)
-        }
-        setRoadmap2026(roadmapData)
-      } catch (err) {
-        console.error('Failed to fetch finance data:', err)
-        setError('Fejl ved indlæsning af data')
-      } finally {
-        setLoading(false)
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const [financeData, roadmapData] = await Promise.all([
+        fetchFinanceData(),
+        fetchFinanceRoadmap2026()
+      ])
+      if (!financeData) {
+        setError('Ingen data tilgængelig')
+      } else {
+        setSnapshot(financeData)
       }
+      setRoadmap2026(roadmapData)
+    } catch (err) {
+      console.error('Failed to fetch finance data:', err)
+      setError('Fejl ved indlæsning af data')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadData()
   }, [])
+
+  const handleUpdateData = async () => {
+    const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_UPDATE_FINANCE
+    
+    if (!webhookUrl) {
+      setError('Webhook URL er ikke konfigureret')
+      return
+    }
+
+    try {
+      setUpdating(true)
+      setError(null)
+      
+      // Call n8n webhook
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Webhook fejlede: ${response.statusText}`)
+      }
+
+      // Wait a bit for n8n to process, then refresh data
+      // You might want to adjust this delay based on your n8n workflow
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Refresh the data
+      await loadData()
+    } catch (err) {
+      console.error('Failed to update finance data:', err)
+      setError('Fejl ved opdatering af data. Prøv igen senere.')
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   const formatCurrency = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '0 kr.'
@@ -278,9 +319,35 @@ export default function FinancePage() {
         <p className="mt-2 text-gray-600">
           Ledelsesoversigt af virksomhedens økonomiske nøgletal
         </p>
-        <p className="mt-1 text-sm text-gray-500">
-          Data opdateret: {formatDate(snapshot.created_at)}
-        </p>
+        <div className="mt-1 flex items-center gap-3">
+          <p className="text-sm text-gray-500">
+            Data opdateret: {formatDate(snapshot.created_at)}
+          </p>
+          <div className="group relative">
+            <button
+              onClick={handleUpdateData}
+              disabled={updating || loading}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {updating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Opdaterer...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Opdater tal</span>
+                </>
+              )}
+            </button>
+            {/* Tooltip */}
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap pointer-events-none">
+              Træk de seneste tal fra Dinero og Trello
+              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Zone B & C: Liquidity Engine and Operational Health Side by Side */}
