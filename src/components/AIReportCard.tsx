@@ -9,6 +9,7 @@ import {
   Target,
   ArrowRight
 } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '../lib/supabase'
 
 interface LLMReport {
@@ -25,11 +26,12 @@ interface LLMReport {
 
 export default function AIReportCard() {
   const [report, setReport] = useState<LLMReport | null>(null)
+  const [reports, setReports] = useState<LLMReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchLatestReport = async () => {
+    const fetchReports = async () => {
       if (!supabase) {
         setError('Supabase client not configured')
         setLoading(false)
@@ -40,25 +42,37 @@ export default function AIReportCard() {
         setLoading(true)
         setError(null)
 
+        // Fetch all reports ordered by date
         const { data, error: fetchError } = await supabase
           .from('HE_LLM_reports')
           .select('*')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
+          .order('created_at', { ascending: true })
 
         if (fetchError) throw fetchError
 
-        setReport(data)
+        if (data && data.length > 0) {
+          // Helper function to parse scores
+          const parseReport = (r: any): LLMReport => ({
+            ...r,
+            total_score: typeof r.total_score === 'string' ? parseFloat(r.total_score) : (r.total_score || 0),
+            openai_score: typeof r.openai_score === 'string' ? parseFloat(r.openai_score) : (r.openai_score || 0),
+            perplexity_score: typeof r.perplexity_score === 'string' ? parseFloat(r.perplexity_score) : (r.perplexity_score || 0),
+          })
+          
+          // Set the latest report
+          setReport(parseReport(data[data.length - 1]))
+          // Set all reports for the chart
+          setReports(data.map(parseReport))
+        }
       } catch (err: any) {
-        console.error('Error fetching LLM report:', err)
-        setError(err.message || 'Failed to fetch AI report')
+        console.error('Error fetching LLM reports:', err)
+        setError(err.message || 'Failed to fetch AI reports')
       } finally {
         setLoading(false)
       }
     }
 
-    fetchLatestReport()
+    fetchReports()
   }, [])
 
   const getScoreColor = (score: number): string => {
@@ -116,6 +130,22 @@ export default function AIReportCard() {
     })
   }
 
+  const formatChartDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('da-DK', {
+      day: 'numeric',
+      month: 'short',
+    })
+  }
+
+  // Prepare chart data
+  const chartData = reports.map(r => ({
+    date: formatChartDate(r.created_at),
+    fullDate: r.created_at,
+    'ChatGPT (OpenAI)': r.openai_score,
+    'Perplexity': r.perplexity_score,
+    'Total Score': r.total_score,
+  }))
+
   const formatActionPlan = (plan: string | null): string[] => {
     if (!plan) return []
     
@@ -170,38 +200,90 @@ export default function AIReportCard() {
         <p className="text-gray-700 leading-relaxed">{report.summary_text}</p>
       </div>
 
-      {/* Score Cards */}
+      {/* Score Chart Over Time */}
       <div className="p-6 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Model Scores</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* OpenAI Score */}
-          <div className={`flex items-center space-x-3 p-4 rounded-lg border ${getScoreColor(report.openai_score)}`}>
-            <div className="flex-shrink-0">
-              <Bot className="h-6 w-6" />
-            </div>
-            <div className="flex-1">
-              <div className="text-xs font-medium mb-1">ChatGPT (OpenAI)</div>
-              <div className="flex items-center space-x-2">
-                {getScoreIcon(report.openai_score)}
-                <span className="text-lg font-bold">{report.openai_score.toFixed(1)}</span>
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">Model Scores Over Tid</h3>
+        {chartData.length > 0 ? (
+          <div className="w-full">
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#6b7280"
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis 
+                  stroke="#6b7280"
+                  domain={[0, 10]}
+                  style={{ fontSize: '12px' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                  labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
+                />
+                <Legend 
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="ChatGPT (OpenAI)" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="Perplexity" 
+                  stroke="#eab308" 
+                  strokeWidth={2}
+                  dot={{ fill: '#eab308', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            {/* Current Scores Summary */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* OpenAI Score - Always Blue */}
+              <div className="flex items-center space-x-3 p-3 rounded-lg border text-blue-600 bg-blue-50 border-blue-200">
+                <div className="flex-shrink-0">
+                  <Bot className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-medium mb-1">ChatGPT (OpenAI)</div>
+                  <div className="flex items-center space-x-2">
+                    {getScoreIcon(report.openai_score)}
+                    <span className="text-base font-bold">{report.openai_score.toFixed(1)}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Perplexity Score */}
-          <div className={`flex items-center space-x-3 p-4 rounded-lg border ${getScoreColor(report.perplexity_score)}`}>
-            <div className="flex-shrink-0">
-              <Globe className="h-6 w-6" />
-            </div>
-            <div className="flex-1">
-              <div className="text-xs font-medium mb-1">Perplexity</div>
-              <div className="flex items-center space-x-2">
-                {getScoreIcon(report.perplexity_score)}
-                <span className="text-lg font-bold">{report.perplexity_score.toFixed(1)}</span>
+              {/* Perplexity Score - Always Yellow */}
+              <div className="flex items-center space-x-3 p-3 rounded-lg border text-yellow-600 bg-yellow-50 border-yellow-200">
+                <div className="flex-shrink-0">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-medium mb-1">Perplexity</div>
+                  <div className="flex items-center space-x-2">
+                    {getScoreIcon(report.perplexity_score)}
+                    <span className="text-base font-bold">{report.perplexity_score.toFixed(1)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500 text-sm">
+            Ikke nok data til at vise graf (minimum 2 datapunkter påkrævet)
+          </div>
+        )}
       </div>
 
       {/* Analysis Grid */}
