@@ -1003,6 +1003,11 @@ export default function AdminUsersPage() {
                           Freelance
                         </span>
                       )}
+                      {(user.type === 'a-indkomst' || (!user.type && user.salary !== null && user.salary !== undefined)) && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded flex-shrink-0">
+                          A-indkomst
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
