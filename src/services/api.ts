@@ -183,31 +183,63 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
       // Continue even if logs fail, just use 0 cost
     }
 
-    // Fetch all users with hourly_rate
+    // Fetch all users with hourly_rate, type, and hourly_rate_manual
     const { data: users, error: usersError } = await supabase
       .from('he_time_users')
-      .select('id, hourly_rate')
+      .select('id, hourly_rate, type, hourly_rate_manual')
 
     if (usersError) {
       console.error('Error fetching users:', usersError)
       // Continue even if users fail, just use 0 cost
     }
 
-    // Create a map of user_id -> hourly_rate
+    // Create maps for user data
     const userRateMap = new Map<string, number>()
+    const userTypeMap = new Map<string, 'freelance' | 'a-indkomst' | null>()
     if (users) {
       users.forEach((user: any) => {
-        if (user.id && user.hourly_rate !== null && user.hourly_rate !== undefined) {
-          userRateMap.set(user.id, user.hourly_rate)
+        if (user.id) {
+          userTypeMap.set(user.id, user.type || 'a-indkomst')
+          // For freelancers, use hourly_rate_manual; for A-indkomst, use hourly_rate
+          if (user.type === 'freelance' && user.hourly_rate_manual !== null && user.hourly_rate_manual !== undefined) {
+            userRateMap.set(user.id, user.hourly_rate_manual)
+          } else if ((user.type === 'a-indkomst' || !user.type) && user.hourly_rate !== null && user.hourly_rate !== undefined) {
+            userRateMap.set(user.id, user.hourly_rate)
+          }
         }
       })
     }
 
+    // Fetch project types to determine if they're customer or internal
+    const projectIds = [...new Set((timeLogs || []).map((log: any) => log.project_id).filter(Boolean))]
+    const { data: projectTypes, error: projectTypesError } = await supabase
+      .from('he_time_projects')
+      .select('id, type')
+      .in('id', projectIds.length > 0 ? projectIds : [''])
+
+    const projectTypeMap = new Map<string, string | null>()
+    if (projectTypes) {
+      projectTypes.forEach((p: any) => {
+        projectTypeMap.set(p.id, p.type)
+      })
+    }
+
     // Calculate internal cost per project (sum of hours * hourly_rate for each log)
+    // For freelancers: only count customer projects
+    // For A-indkomst: count all projects
     const internalCostByProject: Record<string, number> = {}
     if (timeLogs) {
-      timeLogs.forEach(log => {
+      timeLogs.forEach((log: any) => {
         if (log.project_id && log.user_id && log.hours) {
+          const userType = userTypeMap.get(log.user_id) || 'a-indkomst'
+          const projectType = projectTypeMap.get(log.project_id)
+          const isCustomerProject = projectType === 'Kunde' || projectType === 'customer'
+          
+          // For freelancers, only calculate cost for customer projects
+          if (userType === 'freelance' && !isCustomerProject) {
+            return // Skip internal projects for freelancers
+          }
+          
           const hourlyRate = userRateMap.get(log.user_id) || 0
           const cost = log.hours * hourlyRate
           internalCostByProject[log.project_id] = (internalCostByProject[log.project_id] || 0) + cost

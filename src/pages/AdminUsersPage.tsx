@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Edit2, AlertCircle, Upload, Image as ImageIcon, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Users, Plus, Edit2, AlertCircle, Upload, Image as ImageIcon, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { 
   fetchAllUsers, 
   createUser, 
@@ -9,7 +10,9 @@ import {
   activateUser,
   uploadAvatar,
   deleteAvatar,
-  TimeUser 
+  TimeUser,
+  fetchFreelancerTimeStats,
+  FreelancerTimeStats
 } from '../services/userApi'
 
 // Predefined color options
@@ -36,15 +39,34 @@ export default function AdminUsersPage() {
   const [formInitials, setFormInitials] = useState('')
   const [formColor, setFormColor] = useState(colorOptions[0].value)
   const [formSalary, setFormSalary] = useState<string>('')
+  const [formType, setFormType] = useState<'freelance' | 'a-indkomst'>('a-indkomst')
+  const [formHourlyRateManual, setFormHourlyRateManual] = useState<string>('')
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null)
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [freelancerStats, setFreelancerStats] = useState<FreelancerTimeStats | null>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
     loadUsers()
   }, [])
+
+  // Check if there's an edit parameter in URL and open edit modal
+  useEffect(() => {
+    const editUserId = searchParams.get('edit')
+    if (editUserId && users.length > 0) {
+      const userToEdit = users.find(u => u.id === editUserId)
+      if (userToEdit && !editingUser) {
+        startEditing(userToEdit)
+        // Remove the query parameter from URL
+        setSearchParams({})
+      }
+    }
+  }, [searchParams, users, editingUser])
 
   const loadUsers = async () => {
     try {
@@ -93,7 +115,9 @@ export default function AdminUsersPage() {
         initials: formInitials,
         color: formColor,
         avatar_url: avatarUrl,
-        salary: formSalary ? parseFloat(formSalary) : null
+        salary: formType === 'a-indkomst' && formSalary ? parseFloat(formSalary) : null,
+        type: formType,
+        hourly_rate_manual: formType === 'freelance' && formHourlyRateManual ? parseFloat(formHourlyRateManual) : null
       })
 
       // If avatar was uploaded with temp ID, re-upload with actual user ID
@@ -159,7 +183,9 @@ export default function AdminUsersPage() {
         initials: formInitials,
         color: formColor,
         avatar_url: avatarUrl,
-        salary: formSalary ? parseFloat(formSalary) : null
+        salary: formType === 'a-indkomst' && formSalary ? parseFloat(formSalary) : (formType === 'freelance' ? null : undefined),
+        type: formType,
+        hourly_rate_manual: formType === 'freelance' && formHourlyRateManual ? parseFloat(formHourlyRateManual) : (formType === 'a-indkomst' ? null : undefined)
       })
       await loadUsers()
       resetForm()
@@ -203,8 +229,11 @@ export default function AdminUsersPage() {
     setFormInitials('')
     setFormColor(colorOptions[0].value)
     setFormSalary('')
+    setFormType('a-indkomst')
+    setFormHourlyRateManual('')
     setFormAvatarFile(null)
     setFormAvatarPreview(null)
+    setFreelancerStats(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -239,9 +268,21 @@ export default function AdminUsersPage() {
     setFormInitials(user.initials)
     setFormColor(user.color)
     setFormSalary(user.salary?.toString() || '')
+    setFormType(user.type || 'a-indkomst')
+    setFormHourlyRateManual(user.hourly_rate_manual?.toString() || '')
     setFormAvatarFile(null)
     setFormAvatarPreview(user.avatar_url || null)
     setShowAddForm(false)
+    
+    // Load freelancer stats if user is a freelancer
+    if (user.type === 'freelance') {
+      setLoadingStats(true)
+      const stats = await fetchFreelancerTimeStats(user.id)
+      setFreelancerStats(stats)
+      setLoadingStats(false)
+    } else {
+      setFreelancerStats(null)
+    }
   }
 
   const cancelEditing = () => {
@@ -335,18 +376,56 @@ export default function AdminUsersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Løn (månedlig)
+                Type *
               </label>
-              <input
-                type="number"
-                value={formSalary}
-                onChange={(e) => setFormSalary(e.target.value)}
-                placeholder="F.eks. 45000"
-                min="0"
-                step="1000"
+              <select
+                value={formType}
+                onChange={(e) => {
+                  const newType = e.target.value as 'freelance' | 'a-indkomst'
+                  setFormType(newType)
+                  if (newType === 'freelance') {
+                    setFormSalary('')
+                  } else {
+                    setFormHourlyRateManual('')
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
+              >
+                <option value="a-indkomst">A-indkomst</option>
+                <option value="freelance">Freelance</option>
+              </select>
             </div>
+            {formType === 'a-indkomst' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Løn (månedlig)
+                </label>
+                <input
+                  type="number"
+                  value={formSalary}
+                  onChange={(e) => setFormSalary(e.target.value)}
+                  placeholder="F.eks. 45000"
+                  min="0"
+                  step="1000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Timepris (kr/time)
+                </label>
+                <input
+                  type="number"
+                  value={formHourlyRateManual}
+                  onChange={(e) => setFormHourlyRateManual(e.target.value)}
+                  placeholder="F.eks. 200"
+                  min="0"
+                  step="10"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            )}
             {editingUser && editingUser.hourly_rate !== null && editingUser.hourly_rate !== undefined && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -407,29 +486,6 @@ export default function AdminUsersPage() {
                     <p className="text-xs text-primary-600 mt-1">Uploader...</p>
                   )}
                 </div>
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Farve
-              </label>
-              <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-                {colorOptions.map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => setFormColor(color.value)}
-                    className={`
-                      flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all
-                      ${formColor === color.value 
-                        ? 'border-gray-900 scale-105' 
-                        : 'border-gray-300 hover:border-gray-400'
-                      }
-                    `}
-                  >
-                    <div className={`w-8 h-8 rounded-full ${color.preview} mb-1`} />
-                    <span className="text-xs text-gray-600">{color.label}</span>
-                  </button>
-                ))}
               </div>
             </div>
           </div>
@@ -510,31 +566,81 @@ export default function AdminUsersPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Løn (månedlig)
+                    Type *
                   </label>
-                  <input
-                    type="number"
-                    value={formSalary}
-                    onChange={(e) => setFormSalary(e.target.value)}
-                    placeholder="F.eks. 45000"
-                    min="0"
-                    step="1000"
+                  <select
+                    value={formType}
+                    onChange={(e) => {
+                      const newType = e.target.value as 'freelance' | 'a-indkomst'
+                      setFormType(newType)
+                      if (newType === 'freelance') {
+                        setFormSalary('')
+                      } else {
+                        setFormHourlyRateManual('')
+                      }
+                      // Reload stats if switching to/from freelancer
+                      if (editingUser && newType === 'freelance') {
+                        setLoadingStats(true)
+                        fetchFreelancerTimeStats(editingUser.id).then(stats => {
+                          setFreelancerStats(stats)
+                          setLoadingStats(false)
+                        })
+                      } else {
+                        setFreelancerStats(null)
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  />
+                  >
+                    <option value="a-indkomst">A-indkomst</option>
+                    <option value="freelance">Freelance</option>
+                  </select>
                 </div>
-                {editingUser.hourly_rate !== null && editingUser.hourly_rate !== undefined && (
+                {formType === 'a-indkomst' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Løn (månedlig)
+                      </label>
+                      <input
+                        type="number"
+                        value={formSalary}
+                        onChange={(e) => setFormSalary(e.target.value)}
+                        placeholder="F.eks. 45000"
+                        min="0"
+                        step="1000"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      />
+                    </div>
+                    {editingUser.hourly_rate !== null && editingUser.hourly_rate !== undefined && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Kostpris (pr. time) <span className="text-xs text-gray-500">(beregnes automatisk)</span>
+                        </label>
+                        <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
+                          {new Intl.NumberFormat('da-DK', {
+                            style: 'currency',
+                            currency: 'DKK',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          }).format(editingUser.hourly_rate)}/time
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Kostpris (pr. time) <span className="text-xs text-gray-500">(beregnes automatisk)</span>
+                      Timepris (kr/time)
                     </label>
-                    <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
-                      {new Intl.NumberFormat('da-DK', {
-                        style: 'currency',
-                        currency: 'DKK',
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0,
-                      }).format(editingUser.hourly_rate)}/time
-                    </div>
+                    <input
+                      type="number"
+                      value={formHourlyRateManual}
+                      onChange={(e) => setFormHourlyRateManual(e.target.value)}
+                      placeholder="F.eks. 200"
+                      min="0"
+                      step="10"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
                   </div>
                 )}
                 <div className="md:col-span-2">
@@ -584,30 +690,171 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Farve
-                  </label>
-                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-                    {colorOptions.map((color) => (
-                      <button
-                        key={color.value}
-                        onClick={() => setFormColor(color.value)}
-                        className={`
-                          flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all
-                          ${formColor === color.value 
-                            ? 'border-gray-900 scale-105' 
-                            : 'border-gray-300 hover:border-gray-400'
-                          }
-                        `}
-                      >
-                        <div className={`w-8 h-8 rounded-full ${color.preview} mb-1`} />
-                        <span className="text-xs text-gray-600">{color.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
+
+              {/* Freelancer Time Stats */}
+              {formType === 'freelance' && freelancerStats && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Timer og omkostninger</h3>
+                  {loadingStats ? (
+                    <div className="text-center py-4 text-gray-500">Indlæser...</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* By Month */}
+                      {freelancerStats.byMonth.length > 0 ? (
+                        <div className="space-y-3">
+                          {freelancerStats.byMonth.map((month, idx) => {
+                            const isExpanded = expandedMonths.has(month.month)
+                            return (
+                              <div key={idx} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                {/* Month Header - Clickable */}
+                                <button
+                                  onClick={() => {
+                                    setExpandedMonths(prev => {
+                                      const newSet = new Set(prev)
+                                      if (newSet.has(month.month)) {
+                                        newSet.delete(month.month)
+                                      } else {
+                                        newSet.add(month.month)
+                                      }
+                                      return newSet
+                                    })
+                                  }}
+                                  className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
+                                >
+                                  <h4 className="text-xs font-semibold text-gray-900">{month.monthLabel}</h4>
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4 text-gray-500" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                                  )}
+                                </button>
+                                
+                                {/* Month Summary */}
+                                <div className="px-3 pb-3">
+                                  <div className="grid grid-cols-2 gap-3 mb-2">
+                                    <div className="bg-green-50 p-2 rounded border border-green-200">
+                                      <div className="text-xs text-gray-600 mb-1">Kundeprojekter</div>
+                                      <div className="text-base font-bold text-green-700">
+                                        {new Intl.NumberFormat('da-DK', {
+                                          style: 'currency',
+                                          currency: 'DKK',
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 0,
+                                        }).format(month.customerCost)}
+                                      </div>
+                                      <div className="text-xs text-gray-600 mt-0.5">
+                                        {month.customerHours.toFixed(1)} timer
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-2 rounded border border-gray-200">
+                                      <div className="text-xs text-gray-600 mb-1">Interne opgaver</div>
+                                      <div className="text-base font-bold text-gray-700">
+                                        {new Intl.NumberFormat('da-DK', {
+                                          style: 'currency',
+                                          currency: 'DKK',
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 0,
+                                        }).format(month.internalCost)}
+                                      </div>
+                                      <div className="text-xs text-gray-600 mt-0.5">
+                                        {month.internalHours.toFixed(1)} timer
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-200">
+                                    <span className="text-gray-600">Total faktureret:</span>
+                                    <span className="font-semibold text-gray-900">
+                                      {new Intl.NumberFormat('da-DK', {
+                                        style: 'currency',
+                                        currency: 'DKK',
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                      }).format(month.customerCost)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Expanded Project Details */}
+                                {isExpanded && month.projects.length > 0 && (
+                                  <div className="px-3 pb-3 border-t border-gray-200 pt-3">
+                                    <h5 className="text-xs font-medium text-gray-700 mb-2">Projekter:</h5>
+                                    <div className="space-y-2">
+                                      {month.projects.map((project, pIdx) => (
+                                        <div key={pIdx} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded border border-gray-200">
+                                          <span className="font-medium text-gray-700">{project.projectName}</span>
+                                          <div className="flex items-center space-x-3">
+                                            <span className="text-gray-600">{project.hours.toFixed(1)} timer</span>
+                                            <span className="font-semibold text-gray-900">
+                                              {new Intl.NumberFormat('da-DK', {
+                                                style: 'currency',
+                                                currency: 'DKK',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                              }).format(project.cost)}
+                                            </span>
+                                            <span className={`text-xs px-2 py-0.5 rounded ${
+                                              project.projectType === 'Kunde' || project.projectType === 'customer'
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                              {project.projectType === 'Kunde' || project.projectType === 'customer' ? 'Kunde' : 'Internt'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-gray-500 text-sm">
+                          Ingen timer registreret endnu
+                        </div>
+                      )}
+                      
+                      {/* Overall Totals */}
+                      {freelancerStats.byMonth.length > 0 && (
+                        <div className="pt-3 border-t border-blue-300">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-green-50 p-3 rounded border border-green-200">
+                              <div className="text-xs text-gray-600 mb-1">Total kundeprojekter</div>
+                              <div className="text-lg font-bold text-green-700">
+                                {new Intl.NumberFormat('da-DK', {
+                                  style: 'currency',
+                                  currency: 'DKK',
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                }).format(freelancerStats.customerTotal.cost)}
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {freelancerStats.customerTotal.hours.toFixed(1)} timer
+                              </div>
+                            </div>
+                            <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                              <div className="text-xs text-gray-600 mb-1">Total interne opgaver</div>
+                              <div className="text-lg font-bold text-gray-700">
+                                {new Intl.NumberFormat('da-DK', {
+                                  style: 'currency',
+                                  currency: 'DKK',
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                }).format(freelancerStats.internalTotal.cost)}
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {freelancerStats.internalTotal.hours.toFixed(1)} timer
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Deactivate/Activate button */}
               <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -664,7 +911,7 @@ export default function AdminUsersPage() {
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
-            Lønnede medarbejdere ({users.length})
+            Medarbejdere ({users.length})
           </h2>
         </div>
         <div className="divide-y divide-gray-200">
@@ -715,7 +962,7 @@ export default function AdminUsersPage() {
                       <span className="text-gray-500">
                         <span className="text-gray-400">Initialer:</span> <span className="font-medium text-gray-700">{user.initials}</span>
                       </span>
-                      {user.salary !== null && user.salary !== undefined && (
+                      {(user.type === 'a-indkomst' || !user.type) && user.salary !== null && user.salary !== undefined && (
                         <span className="text-gray-500">
                           <span className="text-gray-400">Løn:</span> <span className="font-medium text-gray-700">
                             {new Intl.NumberFormat('da-DK', {
@@ -727,7 +974,7 @@ export default function AdminUsersPage() {
                           </span>
                         </span>
                       )}
-                      {user.hourly_rate !== null && user.hourly_rate !== undefined && (
+                      {(user.type === 'a-indkomst' || !user.type) && user.hourly_rate !== null && user.hourly_rate !== undefined && (
                         <span className="text-gray-500">
                           <span className="text-gray-400">Kostpris:</span> <span className="font-medium text-gray-700">
                             {new Intl.NumberFormat('da-DK', {
@@ -737,6 +984,23 @@ export default function AdminUsersPage() {
                               maximumFractionDigits: 0,
                             }).format(user.hourly_rate)}/time
                           </span>
+                        </span>
+                      )}
+                      {user.type === 'freelance' && user.hourly_rate_manual !== null && user.hourly_rate_manual !== undefined && (
+                        <span className="text-gray-500">
+                          <span className="text-gray-400">Timepris:</span> <span className="font-medium text-gray-700">
+                            {new Intl.NumberFormat('da-DK', {
+                              style: 'currency',
+                              currency: 'DKK',
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
+                            }).format(user.hourly_rate_manual)}/time
+                          </span>
+                        </span>
+                      )}
+                      {user.type === 'freelance' && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded flex-shrink-0">
+                          Freelance
                         </span>
                       )}
                     </div>

@@ -18,6 +18,7 @@ BEGIN
     FROM he_time_users 
     WHERE salary > 0 
       AND is_active = true  -- Only count active employees
+      AND (type = 'a-indkomst' OR type IS NULL)  -- Exclude freelancers
   ),
   overhead_calc AS (
     SELECT 
@@ -31,7 +32,8 @@ BEGIN
   UPDATE he_time_users
   SET hourly_rate = (salary + (SELECT overhead_per_person FROM overhead_calc)) / 160.33
   WHERE salary IS NOT NULL 
-    AND is_active = true;  -- Only update active employees
+    AND is_active = true  -- Only update active employees
+    AND (type = 'a-indkomst' OR type IS NULL);  -- Exclude freelancers
 END;
 $$ LANGUAGE plpgsql;
 
@@ -69,6 +71,7 @@ BEGIN
     FROM he_time_users 
     WHERE salary > 0 
       AND is_active = true  -- Only count active employees
+      AND (type = 'a-indkomst' OR type IS NULL)  -- Exclude freelancers
   ),
   overhead_calc AS (
     SELECT 
@@ -82,7 +85,8 @@ BEGIN
   UPDATE he_time_users
   SET hourly_rate = (salary + (SELECT overhead_per_person FROM overhead_calc)) / 160.33
   WHERE salary IS NOT NULL 
-    AND is_active = true;  -- Only update active employees
+    AND is_active = true  -- Only update active employees
+    AND (type = 'a-indkomst' OR type IS NULL);  -- Exclude freelancers
   
   RETURN NULL;
 END;

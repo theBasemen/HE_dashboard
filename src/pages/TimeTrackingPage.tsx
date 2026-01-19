@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { Clock, Calendar, AlertCircle, User, Plus, Building2, Briefcase, Trash2, X, Edit2, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fetchActiveUsers, TimeUser } from '../services/userApi'
@@ -484,6 +485,7 @@ function MonthCalendar({
   onUpdateEntry?: (entryId: number, updates: { projectId: string; hours: number }) => Promise<void>
   onDeleteEntry?: (entryId: number) => void
 }) {
+  const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   
   const daysInMonth = getDaysInMonth(year, month)
@@ -547,7 +549,17 @@ function MonthCalendar({
             ) : (
               <User className="h-5 w-5 text-primary-600 flex-shrink-0" />
             )}
-            <h3 className="text-sm font-semibold text-gray-900 truncate">{employee.name}</h3>
+            <h3 
+              className="text-sm font-semibold text-gray-900 truncate cursor-pointer hover:text-primary-600 transition-colors"
+              onClick={() => {
+                if (employee.id) {
+                  navigate(`/admin/users?edit=${employee.id}`)
+                }
+              }}
+              title="Klik for at redigere medarbejder"
+            >
+              {employee.name}
+            </h3>
           </div>
           <span className="text-xs font-medium text-gray-600 flex-shrink-0 ml-2">
             {monthNames[month].substring(0, 3)} {year}
