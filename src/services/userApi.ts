@@ -255,24 +255,30 @@ export async function fetchFreelancerTimeStats(userId: string): Promise<Freelanc
     }
 
     // Create project map
-    const projectMap = new Map<string, { name: string; type: string | null }>()
+    const projectMap = new Map<string, { name: string; type: 'Kunde' | 'Internt' | 'customer' | 'internal' | null }>()
     if (projects) {
       projects.forEach((p: any) => {
+        let normalizedType: 'Kunde' | 'Internt' | 'customer' | 'internal' | null = null
+        if (p.type === 'customer' || p.type === 'Kunde') {
+          normalizedType = 'Kunde'
+        } else if (p.type === 'internal' || p.type === 'Internt') {
+          normalizedType = 'Internt'
+        }
         projectMap.set(p.id, { 
           name: p.name, 
-          type: p.type === 'customer' ? 'Kunde' : p.type === 'internal' ? 'Internt' : p.type 
+          type: normalizedType
         })
       })
     }
 
     // Group by project and by month
-    const byProjectMap = new Map<string, { hours: number; cost: number; projectType: string | null }>()
+    const byProjectMap = new Map<string, { hours: number; cost: number; projectType: 'Kunde' | 'Internt' | 'customer' | 'internal' | null }>()
     const byMonthMap = new Map<string, { 
       customerHours: number
       customerCost: number
       internalHours: number
       internalCost: number
-      projects: Map<string, { hours: number; cost: number; projectType: string | null }>
+      projects: Map<string, { hours: number; cost: number; projectType: 'Kunde' | 'Internt' | 'customer' | 'internal' | null }>
     }>()
     let customerHours = 0
     let customerCost = 0
@@ -282,7 +288,7 @@ export async function fetchFreelancerTimeStats(userId: string): Promise<Freelanc
     timeLogs.forEach((log: any) => {
       const project = log.project_id ? projectMap.get(log.project_id) : null
       const projectName = project?.name || 'Ingen projekt'
-      const projectType = project?.type || null
+      const projectType: 'Kunde' | 'Internt' | 'customer' | 'internal' | null = project?.type || null
       const hours = log.hours || 0
       const cost = hours * hourlyRate
 

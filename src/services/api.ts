@@ -212,7 +212,7 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
 
     // Fetch project types to determine if they're customer or internal
     const projectIds = [...new Set((timeLogs || []).map((log: any) => log.project_id).filter(Boolean))]
-    const { data: projectTypes, error: projectTypesError } = await supabase
+    const { data: projectTypes } = await supabase
       .from('he_time_projects')
       .select('id, type')
       .in('id', projectIds.length > 0 ? projectIds : [''])
