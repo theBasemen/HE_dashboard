@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trophy, AlertCircle, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import { Trophy, AlertCircle, Calendar, ChevronDown, ChevronUp, Mail, Phone, MapPin } from 'lucide-react'
 import { 
   fetchAllTopLists, 
   TopJob, 
@@ -91,6 +91,64 @@ export default function ToplisterPage() {
       newExpanded.add(index)
     }
     setExpandedRecurringCustomers(newExpanded)
+  }
+
+  const formatAddress = (street: string | null, zipCode: string | null, city: string | null): string => {
+    const parts = [street, zipCode && city ? `${zipCode} ${city}` : city].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : 'Ingen adresse'
+  }
+
+  const ContactDetailsSection = ({ 
+    street, 
+    zipCode, 
+    city, 
+    email, 
+    phone, 
+    vatNumber 
+  }: { 
+    street: string | null
+    zipCode: string | null
+    city: string | null
+    email: string | null
+    phone: string | null
+    vatNumber: string | null
+  }) => {
+    const address = formatAddress(street, zipCode, city)
+    const hasContactInfo = address !== 'Ingen adresse' || email || phone || vatNumber
+    
+    if (!hasContactInfo) return null
+
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+        {address !== 'Ingen adresse' && (
+          <div className="flex items-start space-x-2 text-xs text-gray-600">
+            <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0 text-gray-400" />
+            <span>{address}</span>
+          </div>
+        )}
+        {email && (
+          <div className="flex items-center space-x-2 text-xs text-gray-600">
+            <Mail className="h-3 w-3 flex-shrink-0 text-gray-400" />
+            <a href={`mailto:${email}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+              {email}
+            </a>
+          </div>
+        )}
+        {phone && (
+          <div className="flex items-center space-x-2 text-xs text-gray-600">
+            <Phone className="h-3 w-3 flex-shrink-0 text-gray-400" />
+            <a href={`tel:${phone}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+              {phone}
+            </a>
+          </div>
+        )}
+        {vatNumber && (
+          <div className="text-xs text-gray-500 mt-2">
+            CVR: {vatNumber}
+          </div>
+        )}
+      </div>
+    )
   }
 
   // Loading skeleton
@@ -219,6 +277,14 @@ export default function ToplisterPage() {
                                 Faktura ID: {job.invoice_id}
                               </div>
                             )}
+                            <ContactDetailsSection
+                              street={job.street || null}
+                              zipCode={job.zip_code || null}
+                              city={job.city || null}
+                              email={job.email || null}
+                              phone={job.phone || null}
+                              vatNumber={job.vat_number || null}
+                            />
                           </div>
                         )}
                       </div>
@@ -269,6 +335,14 @@ export default function ToplisterPage() {
                             <div className="text-xs text-gray-500">
                               Gns. pr. faktura: {formatCurrency(customer.total_revenue / customer.invoice_count)}
                             </div>
+                            <ContactDetailsSection
+                              street={customer.street || null}
+                              zipCode={customer.zip_code || null}
+                              city={customer.city || null}
+                              email={customer.email || null}
+                              phone={customer.phone || null}
+                              vatNumber={customer.vat_number || null}
+                            />
                           </div>
                         )}
                       </div>
@@ -319,6 +393,14 @@ export default function ToplisterPage() {
                             <div className="text-xs text-gray-500">
                               Gns. pr. faktura: {formatCurrency(customer.total_revenue / customer.invoice_count)}
                             </div>
+                            <ContactDetailsSection
+                              street={customer.street || null}
+                              zipCode={customer.zip_code || null}
+                              city={customer.city || null}
+                              email={customer.email || null}
+                              phone={customer.phone || null}
+                              vatNumber={customer.vat_number || null}
+                            />
                           </div>
                         )}
                       </div>

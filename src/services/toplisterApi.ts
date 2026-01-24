@@ -1,6 +1,20 @@
 import { supabase } from '../lib/supabase'
 
 /**
+ * Contact details for jobs and customers
+ */
+export interface ContactDetails {
+  city: string | null
+  email: string | null
+  phone: string | null
+  street: string | null
+  zip_code: string | null
+  vat_number: string | null
+  country_key: string | null
+  contact_guid: string | null
+}
+
+/**
  * Top job by revenue (single invoice/job)
  */
 export interface TopJob {
@@ -10,6 +24,14 @@ export interface TopJob {
   customer: string
   amount: number
   description: string | null
+  city?: string | null
+  email?: string | null
+  phone?: string | null
+  street?: string | null
+  zip_code?: string | null
+  vat_number?: string | null
+  country_key?: string | null
+  contact_guid?: string | null
 }
 
 /**
@@ -20,6 +42,14 @@ export interface TopCustomerRevenue {
   customer: string
   invoice_count: number
   total_revenue: number
+  city?: string | null
+  email?: string | null
+  phone?: string | null
+  street?: string | null
+  zip_code?: string | null
+  vat_number?: string | null
+  country_key?: string | null
+  contact_guid?: string | null
 }
 
 /**
@@ -30,6 +60,14 @@ export interface TopCustomerRecurring {
   customer: string
   invoice_count: number
   total_revenue: number
+  city?: string | null
+  email?: string | null
+  phone?: string | null
+  street?: string | null
+  zip_code?: string | null
+  vat_number?: string | null
+  country_key?: string | null
+  contact_guid?: string | null
 }
 
 /**
@@ -235,7 +273,15 @@ export async function fetchAllTopLists(): Promise<{
             date: job.date,
             customer: job.customer,
             amount: job.amount,
-            description: job.description || null
+            description: job.description || null,
+            city: job.city || null,
+            email: job.email || null,
+            phone: job.phone || null,
+            street: job.street || null,
+            zip_code: job.zip_code || null,
+            vat_number: job.vat_number || null,
+            country_key: job.country_key || null,
+            contact_guid: job.contact_guid || null
           }))
         }
       }
@@ -253,7 +299,15 @@ export async function fetchAllTopLists(): Promise<{
             snapshot_date: snapshotData.snapshot_date,
             customer: customer.customer,
             invoice_count: customer.invoice_count,
-            total_revenue: customer.total_revenue
+            total_revenue: customer.total_revenue,
+            city: customer.city || null,
+            email: customer.email || null,
+            phone: customer.phone || null,
+            street: customer.street || null,
+            zip_code: customer.zip_code || null,
+            vat_number: customer.vat_number || null,
+            country_key: customer.country_key || null,
+            contact_guid: customer.contact_guid || null
           }))
         }
       }
@@ -271,7 +325,15 @@ export async function fetchAllTopLists(): Promise<{
             snapshot_date: snapshotData.snapshot_date,
             customer: customer.customer,
             invoice_count: customer.invoice_count,
-            total_revenue: customer.total_revenue
+            total_revenue: customer.total_revenue,
+            city: customer.city || null,
+            email: customer.email || null,
+            phone: customer.phone || null,
+            street: customer.street || null,
+            zip_code: customer.zip_code || null,
+            vat_number: customer.vat_number || null,
+            country_key: customer.country_key || null,
+            contact_guid: customer.contact_guid || null
           }))
         }
       }
