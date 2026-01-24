@@ -63,20 +63,6 @@ export default function ToplisterPage() {
     }
   }
 
-  const formatDateShort = (dateString: string | null | undefined): string => {
-    if (!dateString) return 'Ukendt'
-    try {
-      const date = new Date(dateString)
-      return new Intl.DateTimeFormat('da-DK', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      }).format(date)
-    } catch {
-      return 'Ukendt'
-    }
-  }
-
   const toggleJobExpanded = (index: number) => {
     const newExpanded = new Set(expandedJobs)
     if (newExpanded.has(index)) {

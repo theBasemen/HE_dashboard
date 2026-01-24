@@ -172,7 +172,6 @@ export async function fetchAllTopLists(): Promise<{
     ]
 
     let snapshotData: any = null
-    let tableName: string | null = null
 
     for (const table of possibleTableNames) {
       try {
@@ -187,7 +186,6 @@ export async function fetchAllTopLists(): Promise<{
 
         if (!error && data) {
           snapshotData = data
-          tableName = table
           break
         } else if (error && error.code !== 'PGRST116') {
           // PGRST116 means no rows found, which is fine - try next table
@@ -201,7 +199,6 @@ export async function fetchAllTopLists(): Promise<{
           
           if (!arrayError && arrayData && arrayData.length > 0) {
             snapshotData = arrayData[0]
-            tableName = table
             break
           }
         }
