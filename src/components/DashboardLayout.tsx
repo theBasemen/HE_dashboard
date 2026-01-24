@@ -10,7 +10,8 @@ import {
   Building2,
   Users,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  Trophy
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -20,6 +21,7 @@ const navigation = [
   { name: 'Medarbejdere', href: '/admin/users', icon: Users },
   { name: 'Tidsregistrering', href: '/time-tracking', icon: Clock },
   { name: 'Økonomi & Likviditet', href: '/', icon: LayoutDashboard },
+  { name: 'Toplister', href: '/toplister', icon: Trophy },
   { name: 'SEO & AI synlighed', href: '/seo', icon: TrendingUp },
   { name: 'Årshjul', href: '/year-wheel', icon: Calendar },
 ]
