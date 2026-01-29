@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Clock, Calendar, AlertCircle, User, Plus, Building2, Briefcase, Trash2, X, Edit2, ChevronUp, ChevronDown } from 'lucide-react'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { fetchActiveUsers, TimeUser } from '../services/userApi'
 
@@ -520,6 +521,58 @@ function MonthCalendar({
     return sum
   }, 0)
 
+  // Calculate project hours for the current month
+  const projectHoursMap = new Map<string, { name: string; hours: number; color: string; type: 'Internt' | 'Kunde' | 'internal' | 'customer' | null }>()
+  
+  Object.entries(employee.entriesByDate).forEach(([date, entries]) => {
+    const [entryYear, entryMonth] = date.split('-').map(Number)
+    if (entryYear === year && entryMonth === month + 1) {
+      entries.forEach((entry) => {
+        const projectId = entry.project_id || entry.project_name || 'unknown'
+        const project = projects.find(p => p.id === entry.project_id || p.name === entry.project_name)
+        
+        if (!projectHoursMap.has(projectId)) {
+          projectHoursMap.set(projectId, {
+            name: entry.project_name || project?.name || 'Ukendt projekt',
+            hours: 0,
+            color: entry.project_color || project?.color || '#9ca3af',
+            type: project?.type || null
+          })
+        }
+        
+        const projectData = projectHoursMap.get(projectId)!
+        projectData.hours += entry.hours || 0
+      })
+    }
+  })
+
+  // Convert to array and sort by hours (descending)
+  const projectHours = Array.from(projectHoursMap.values())
+    .filter(p => p.hours > 0)
+    .sort((a, b) => b.hours - a.hours)
+
+  // Calculate client vs internal hours for pie chart
+  const clientHours = projectHours
+    .filter(p => p.type === 'Kunde' || p.type === 'customer')
+    .reduce((sum, p) => sum + p.hours, 0)
+  
+  const internalHours = projectHours
+    .filter(p => p.type === 'Internt' || p.type === 'internal' || !p.type)
+    .reduce((sum, p) => sum + p.hours, 0)
+
+  const pieData = [
+    { name: 'Kundeprojekter', value: clientHours, color: '#d0335a' },
+    { name: 'Interne opgaver', value: internalHours, color: '#33283a' }
+  ].filter(item => item.value > 0)
+
+  // Calculate percentages for client vs internal
+  const totalProjectHours = clientHours + internalHours
+  const clientPercentage = totalProjectHours > 0 ? (clientHours / totalProjectHours) * 100 : 0
+  const internalPercentage = totalProjectHours > 0 ? (internalHours / totalProjectHours) * 100 : 0
+
+  // Find max hours for normalization
+  const maxHours = projectHours.length > 0 ? Math.max(...projectHours.map(p => p.hours)) : 1
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
       {/* Header */}
@@ -563,12 +616,6 @@ function MonthCalendar({
           </div>
           <span className="text-xs font-medium text-gray-600 flex-shrink-0 ml-2">
             {monthNames[month].substring(0, 3)} {year}
-          </span>
-        </div>
-        <div className="flex items-center space-x-1.5">
-          <Clock className="h-3 w-3 text-gray-500 flex-shrink-0" />
-          <span className="text-xs text-gray-600">
-            Total: <span className="font-semibold text-gray-900">{totalHours.toFixed(1)}t</span>
           </span>
         </div>
       </div>
@@ -641,6 +688,173 @@ function MonthCalendar({
             </div>
           )
         })}
+      </div>
+
+      {/* Project Breakdown Section */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <h4 className={`text-xs font-semibold mb-4 ${projectHours.length > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+          Projektfordeling
+        </h4>
+        
+        {projectHours.length > 0 ? (
+          <>
+            {/* Project List with Horizontal Bars */}
+            <div className="space-y-3 mb-4">
+              {projectHours.map((project) => (
+                <div key={project.name}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <div className="flex-shrink-0 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color }} />
+                      <span className="text-xs font-medium text-gray-900 truncate">{project.name}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-gray-700 ml-2 flex-shrink-0">
+                      {project.hours.toFixed(1)}t
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div
+                      className="h-1.5 rounded-full transition-all"
+                      style={{
+                        width: `${(project.hours / maxHours) * 100}%`,
+                        backgroundColor: project.color
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pie Chart - Simplified */}
+            {pieData.length > 0 && (
+              <div className="pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-center mb-3">
+                  <ResponsiveContainer width="100%" height={120}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={45}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value: number) => `${value.toFixed(1)}t`}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* Total Hours */}
+                <div className="flex items-center justify-center mb-2">
+                  <Clock className="h-3 w-3 text-gray-500 flex-shrink-0 mr-1.5" />
+                  <span className="text-xs text-gray-600">
+                    Total: <span className="font-semibold text-gray-900">{totalHours.toFixed(1)}t</span>
+                  </span>
+                </div>
+
+                {/* Percentage Breakdown */}
+                <div className="flex items-center justify-center gap-4 mb-2">
+                  {clientHours > 0 && (
+                    <div className="flex items-center space-x-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#d0335a]" />
+                      <span className="text-xs text-gray-600">
+                        {clientPercentage.toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                  {internalHours > 0 && (
+                    <div className="flex items-center space-x-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#33283a]" />
+                      <span className="text-xs text-gray-600">
+                        {internalPercentage.toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom Legend */}
+                <div className="flex items-center justify-center gap-4">
+                  {pieData.map((entry, index) => (
+                    <div key={index} className="flex items-center space-x-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                      <span className="text-xs text-gray-600">{entry.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Placeholder Project Items */}
+            <div className="space-y-3 mb-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={`placeholder-${i}`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <div className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-gray-300" />
+                      <span className="text-xs font-medium text-gray-400 truncate">
+                        Projektnavn...
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold text-gray-300 ml-2 flex-shrink-0">
+                      0.0t
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full bg-gray-200" style={{ width: '0%' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Placeholder Pie Chart */}
+            <div className="pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-center mb-3">
+                <div className="w-[120px] h-[120px] rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
+                  <span className="text-xs text-gray-400">Ingen data</span>
+                </div>
+              </div>
+              
+              {/* Placeholder Total Hours */}
+              <div className="flex items-center justify-center mb-2">
+                <Clock className="h-3 w-3 text-gray-300 flex-shrink-0 mr-1.5" />
+                <span className="text-xs text-gray-400">
+                  Total: <span className="font-semibold text-gray-300">0.0t</span>
+                </span>
+              </div>
+
+              {/* Placeholder Percentage Breakdown */}
+              <div className="flex items-center justify-center gap-4 mb-2">
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+                  <span className="text-xs text-gray-400">0%</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+                  <span className="text-xs text-gray-400">0%</span>
+                </div>
+              </div>
+
+              {/* Placeholder Legend */}
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+                  <span className="text-xs text-gray-400">Kundeprojekter</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+                  <span className="text-xs text-gray-400">Interne opgaver</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Day Modal */}
