@@ -26,8 +26,8 @@ const RESULT_RED = '#ef4444'
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'] as const
 
 type ChartRowVisual = MonthlyOverviewChartRow & {
-  actual_result_green: number | null
-  actual_result_red: number | null
+  cumulative_result_green: number | null
+  cumulative_result_red: number | null
   hasPipeline: boolean
 }
 
@@ -77,12 +77,21 @@ function MonthlyTooltip({
           <span className="font-medium text-neutral-900 tabular-nums">{formatCurrency(row.actual_costs)}</span>
         </div>
         <div className="flex justify-between gap-6">
-          <span>Resultat</span>
+          <span>Resultat for måneden</span>
           <span
             className="font-semibold tabular-nums"
             style={{ color: row.actual_result >= 0 ? RESULT_GREEN : RESULT_RED }}
           >
             {formatCurrency(row.actual_result)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-6">
+          <span>Akkumuleret resultat</span>
+          <span
+            className="font-semibold tabular-nums"
+            style={{ color: row.cumulative_result >= 0 ? RESULT_GREEN : RESULT_RED }}
+          >
+            {formatCurrency(row.cumulative_result)}
           </span>
         </div>
         <div className="font-medium text-neutral-800 border-b border-neutral-100 pb-2 mb-2 pt-2">Pipeline</div>
@@ -167,8 +176,8 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
         row.project_count > 0
       return {
         ...row,
-        actual_result_green: row.actual_result >= 0 ? row.actual_result : null,
-        actual_result_red: row.actual_result < 0 ? row.actual_result : null,
+        cumulative_result_green: row.cumulative_result >= 0 ? row.cumulative_result : null,
+        cumulative_result_red: row.cumulative_result < 0 ? row.cumulative_result : null,
         hasPipeline,
       }
     })
@@ -224,17 +233,24 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
           <div>
             <h3 className="text-xl font-semibold tracking-tight text-neutral-900">Årsoverblik for 2026</h3>
             <p className="mt-1 text-sm text-neutral-500 max-w-xl">
-              Faktiske bogførte tal for virksomheden og forventet projektøkonomi i pipelinen — adskilt visuelt.
+              Månedlig omsætning (faktisk og pipeline) og akkumuleret faktisk resultat på én skala — nemmere at læse.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1">
               <span className="h-2 w-2 rounded-sm bg-neutral-800" />
-              Faktisk (solid)
+              Faktisk omsætning
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1">
-              <span className="h-2 w-2 rounded-full bg-neutral-400/70 ring-1 ring-neutral-300" />
-              Pipeline (diskrete projekter)
+              <span className="h-2 w-2 rounded-sm bg-neutral-400/80" />
+              Pipeline omsætning
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1">
+              <span
+                className="h-2 w-2 rounded-full ring-1 ring-black/10"
+                style={{ backgroundColor: RESULT_GREEN }}
+              />
+              Akkumuleret resultat
             </span>
           </div>
         </div>
@@ -285,11 +301,10 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                 {currentMonthTick ? (
                   <ReferenceLine
                     x={currentMonthTick}
-                    yAxisId="revenue"
                     stroke="#a8a29e"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 3"
-                    strokeOpacity={0.85}
+                    strokeWidth={1}
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.65}
                   />
                 ) : null}
                 <XAxis
@@ -299,33 +314,16 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                   axisLine={{ stroke: '#e5e5e5' }}
                 />
                 <YAxis
-                  yAxisId="revenue"
-                  tickFormatter={formatAxisTick}
-                  tick={{ fill: '#a3a3a3', fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={48}
-                  label={{
-                    value: 'Omsætning (kr)',
-                    angle: -90,
-                    position: 'insideLeft',
-                    offset: 4,
-                    style: { fill: '#a3a3a3', fontSize: 10, fontWeight: 500 },
-                  }}
-                />
-                <YAxis
-                  yAxisId="result"
-                  orientation="right"
                   tickFormatter={formatAxisTick}
                   tick={{ fill: '#a3a3a3', fontSize: 11 }}
                   tickLine={false}
                   axisLine={false}
                   width={52}
                   label={{
-                    value: 'Resultat (kr)',
-                    angle: 90,
-                    position: 'insideRight',
-                    offset: 6,
+                    value: 'Beløb (kr)',
+                    angle: -90,
+                    position: 'insideLeft',
+                    offset: 4,
                     style: { fill: '#a3a3a3', fontSize: 10, fontWeight: 500 },
                   }}
                 />
@@ -334,9 +332,8 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                   wrapperStyle={{ paddingTop: 20 }}
                   formatter={(value) => <span className="text-xs text-neutral-600">{value}</span>}
                 />
-                <ReferenceLine yAxisId="result" y={0} stroke="#d4d4d4" strokeWidth={1} />
+                <ReferenceLine y={0} stroke="#d4d4d4" strokeWidth={1} />
                 <Bar
-                  yAxisId="revenue"
                   dataKey="actual_revenue"
                   name="Faktisk omsætning"
                   fill="#171717"
@@ -344,7 +341,6 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                   maxBarSize={36}
                 />
                 <Bar
-                  yAxisId="revenue"
                   dataKey="pipeline_revenue"
                   name="Pipeline omsætning"
                   fill="#a3a3a3"
@@ -366,12 +362,11 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                   })}
                 </Bar>
                 <Line
-                  yAxisId="result"
                   type="linear"
-                  dataKey="actual_result_green"
-                  name="Faktisk resultat"
+                  dataKey="cumulative_result_green"
+                  name="Akkumuleret resultat"
                   stroke={RESULT_GREEN}
-                  strokeWidth={2.5}
+                  strokeWidth={2.25}
                   connectNulls
                   dot={(props: {
                     cx?: number
@@ -380,31 +375,30 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                     payload?: ChartRowVisual
                   }) => {
                     const { cx, cy, index, payload } = props
-                    if (cx == null || cy == null) return <g key={`ag-${index}`} />
+                    if (cx == null || cy == null) return <g key={`cg-${index}`} />
                     const isNow = currentMonthTick && payload?.month_short === currentMonthTick
-                    const r = isNow ? 5 : 3.5
+                    const r = isNow ? 4.5 : 3
                     return (
                       <circle
-                        key={`ag-${index}`}
+                        key={`cg-${index}`}
                         cx={cx}
                         cy={cy}
                         r={r}
                         fill={RESULT_GREEN}
                         stroke="#fff"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                       />
                     )
                   }}
-                  activeDot={{ r: 6, fill: RESULT_GREEN, stroke: '#fff', strokeWidth: 2 }}
+                  activeDot={{ r: 5.5, fill: RESULT_GREEN, stroke: '#fff', strokeWidth: 2 }}
                   isAnimationActive={false}
                 />
                 <Line
-                  yAxisId="result"
                   type="linear"
-                  dataKey="actual_result_red"
-                  name="Faktisk resultat (negativ)"
+                  dataKey="cumulative_result_red"
+                  name="Akkumuleret resultat (negativ)"
                   stroke={RESULT_RED}
-                  strokeWidth={2.5}
+                  strokeWidth={2.25}
                   connectNulls
                   dot={(props: {
                     cx?: number
@@ -413,65 +407,24 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                     payload?: ChartRowVisual
                   }) => {
                     const { cx, cy, index, payload } = props
-                    if (cx == null || cy == null) return <g key={`ar-${index}`} />
+                    if (cx == null || cy == null) return <g key={`cr-${index}`} />
                     const isNow = currentMonthTick && payload?.month_short === currentMonthTick
-                    const r = isNow ? 5 : 3.5
+                    const r = isNow ? 4.5 : 3
                     return (
                       <circle
-                        key={`ar-${index}`}
+                        key={`cr-${index}`}
                         cx={cx}
                         cy={cy}
                         r={r}
                         fill={RESULT_RED}
                         stroke="#fff"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                       />
                     )
                   }}
-                  activeDot={{ r: 6, fill: RESULT_RED, stroke: '#fff', strokeWidth: 2 }}
+                  activeDot={{ r: 5.5, fill: RESULT_RED, stroke: '#fff', strokeWidth: 2 }}
                   legendType="none"
                   isAnimationActive={false}
-                />
-                <Line
-                  yAxisId="result"
-                  type="linear"
-                  dataKey="pipeline_expected_result"
-                  name="Pipeline forventet resultat"
-                  stroke="transparent"
-                  strokeWidth={0}
-                  isAnimationActive={false}
-                  legendType="circle"
-                  dot={(props: {
-                    cx?: number
-                    cy?: number
-                    index?: number
-                    payload?: ChartRowVisual
-                  }) => {
-                    const { cx, cy, index, payload } = props
-                    if (cx == null || cy == null || !payload || !payload.hasPipeline) {
-                      return <g key={`pipe-dot-${index ?? 0}`} />
-                    }
-                    const emphasis =
-                      payload.pipeline_revenue !== 0 ||
-                      payload.pipeline_expected_result !== 0 ||
-                      payload.project_count > 0
-                    const isNow = currentMonthTick && payload.month_short === currentMonthTick
-                    const baseR = emphasis ? 6 : 4.5
-                    const r = isNow ? baseR + 1 : baseR
-                    return (
-                      <circle
-                        key={`pipe-dot-${index}`}
-                        cx={cx}
-                        cy={cy}
-                        r={r}
-                        fill="#64748b"
-                        fillOpacity={emphasis ? 0.92 : 0.45}
-                        stroke={isNow ? '#57534e' : '#fff'}
-                        strokeWidth={isNow ? 2 : 1.5}
-                      />
-                    )
-                  }}
-                  activeDot={{ r: 8, fill: '#64748b', stroke: '#fff', strokeWidth: 2 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>

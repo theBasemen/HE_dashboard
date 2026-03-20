@@ -19,6 +19,9 @@ export interface DashboardMonthlyMonth {
     revenue: number
     costs: number
     result: number
+    cumulative_revenue: number
+    cumulative_costs: number
+    cumulative_result: number
   }
   project_pipeline: {
     expected_revenue: number
@@ -35,6 +38,9 @@ export interface DashboardMonthlyOverviewData {
       revenue: number
       costs: number
       result: number
+      cumulative_revenue: number
+      cumulative_costs: number
+      cumulative_result: number
     }
     project_pipeline: {
       expected_revenue: number
@@ -122,6 +128,9 @@ export function normalizeMonthlyMonth(raw: unknown): DashboardMonthlyMonth | nul
       revenue: coerceNumber(ca.revenue),
       costs: coerceNumber(ca.costs),
       result: coerceNumber(ca.result),
+      cumulative_revenue: coerceNumber(ca.cumulative_revenue),
+      cumulative_costs: coerceNumber(ca.cumulative_costs),
+      cumulative_result: coerceNumber(ca.cumulative_result),
     },
     project_pipeline: {
       expected_revenue: coerceNumber(pp.expected_revenue),
@@ -170,6 +179,9 @@ export function parseDashboardMonthlyOverviewData(raw: unknown): DashboardMonthl
         revenue: coerceNumber(caT.revenue),
         costs: coerceNumber(caT.costs),
         result: coerceNumber(caT.result),
+        cumulative_revenue: coerceNumber(caT.cumulative_revenue),
+        cumulative_costs: coerceNumber(caT.cumulative_costs),
+        cumulative_result: coerceNumber(caT.cumulative_result),
       },
       project_pipeline: {
         expected_revenue: coerceNumber(ppT.expected_revenue),
@@ -189,6 +201,9 @@ export interface MonthlyOverviewChartRow {
   actual_revenue: number
   actual_costs: number
   actual_result: number
+  cumulative_revenue: number
+  cumulative_costs: number
+  cumulative_result: number
   pipeline_revenue: number
   pipeline_cost: number
   pipeline_expected_result: number
@@ -216,6 +231,9 @@ export function buildMonthlyOverviewChartRows(data: DashboardMonthlyOverviewData
         actual_revenue: existing.company_actuals.revenue,
         actual_costs: existing.company_actuals.costs,
         actual_result: existing.company_actuals.result,
+        cumulative_revenue: existing.company_actuals.cumulative_revenue,
+        cumulative_costs: existing.company_actuals.cumulative_costs,
+        cumulative_result: existing.company_actuals.cumulative_result,
         pipeline_revenue: existing.project_pipeline.expected_revenue,
         pipeline_cost: existing.project_pipeline.expected_cost,
         pipeline_expected_result: existing.project_pipeline.expected_result,
@@ -230,6 +248,9 @@ export function buildMonthlyOverviewChartRows(data: DashboardMonthlyOverviewData
         actual_revenue: 0,
         actual_costs: 0,
         actual_result: 0,
+        cumulative_revenue: 0,
+        cumulative_costs: 0,
+        cumulative_result: 0,
         pipeline_revenue: 0,
         pipeline_cost: 0,
         pipeline_expected_result: 0,
