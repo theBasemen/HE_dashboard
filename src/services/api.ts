@@ -252,7 +252,13 @@ export async function fetchProjectStatistics(): Promise<ProjectStatistics[]> {
       .filter((project: any) => {
         // Filter out internal projects - only show customer projects
         const projectType = project.type
-        return projectType !== 'internal' && projectType !== 'Internt'
+        const isInternalProject = projectType === 'internal' || projectType === 'Internt'
+        const isCompleteProject = project.is_complete === true
+
+        // If a project is complete, don't show it on the finance dashboard
+        if (isCompleteProject) return false
+
+        return !isInternalProject
       })
       .map((project: any) => {
         // Handle both expected_cost and expected_costs column names
