@@ -1,360 +1,331 @@
-import { useState, useEffect } from 'react'
-import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
-import { fetchFinanceRoadmap2026, FinanceRoadmap2026 as FinanceRoadmap2026Data } from '../services/api'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from 'recharts'
+import { fetchDashboardMonthlyOverview } from '../services/api'
+import {
+  buildMonthlyOverviewChartRows,
+  type DashboardMonthlyOverviewData,
+  type MonthlyOverviewChartRow,
+} from '../lib/dashboardMonthlyOverviewTransform'
 
+/** Kept for API compatibility with FinancePage; cache data does not use overrides yet. */
 interface FinanceRoadmap2026Props {
   overrideBreakEven?: number | null
 }
 
-export default function FinanceRoadmap2026({ overrideBreakEven = null }: FinanceRoadmap2026Props) {
-  const [data, setData] = useState<FinanceRoadmap2026Data[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '0 kr.'
+  return new Intl.NumberFormat('da-DK', {
+    style: 'currency',
+    currency: 'DKK',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value)
+}
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const roadmapData = await fetchFinanceRoadmap2026()
-        setData(roadmapData)
-      } catch (err) {
-        console.error('Failed to fetch finance roadmap:', err)
-        setError('Fejl ved indlæsning af data')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [])
+function formatAxisTick(value: number): string {
+  const abs = Math.abs(value)
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace('.', ',')} m`
+  if (abs >= 1000) return `${Math.round(value / 1000)} k`
+  return `${Math.round(value)}`
+}
 
-  const formatCurrency = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return '0 kr.'
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
-
-  const formatNumber = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return '0'
-    return new Intl.NumberFormat('da-DK', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value)
-  }
-
-  // Generate all 12 months for 2026, filling in missing months with empty data
-  const allMonths = [
-    { month_id: '2026-01', month_name: 'January 2026', month_short: 'Jan' },
-    { month_id: '2026-02', month_name: 'February 2026', month_short: 'Feb' },
-    { month_id: '2026-03', month_name: 'March 2026', month_short: 'Mar' },
-    { month_id: '2026-04', month_name: 'April 2026', month_short: 'Apr' },
-    { month_id: '2026-05', month_name: 'May 2026', month_short: 'Maj' },
-    { month_id: '2026-06', month_name: 'June 2026', month_short: 'Jun' },
-    { month_id: '2026-07', month_name: 'July 2026', month_short: 'Jul' },
-    { month_id: '2026-08', month_name: 'August 2026', month_short: 'Aug' },
-    { month_id: '2026-09', month_name: 'September 2026', month_short: 'Sep' },
-    { month_id: '2026-10', month_name: 'October 2026', month_short: 'Okt' },
-    { month_id: '2026-11', month_name: 'November 2026', month_short: 'Nov' },
-    { month_id: '2026-12', month_name: 'December 2026', month_short: 'Dec' },
-  ]
-
-  // Create a map of existing data by month_id
-  const dataMap = new Map(data.map(item => [item.month_id, item]))
-
-  // Merge all months with existing data, filling missing months with zeros
-  // Apply override break-even if provided
-  const completeData = allMonths.map(month => {
-    const existingData = dataMap.get(month.month_id)
-    if (existingData) {
-      return {
-        ...existingData,
-        month_short: month.month_short,
-        break_even_point: overrideBreakEven !== null ? overrideBreakEven : (existingData.break_even_point || 0),
-      }
-    }
-    // Return empty data for missing months
-    return {
-      month_id: month.month_id,
-      month_name: month.month_name,
-      month_short: month.month_short,
-      expected_turnover: 0,
-      expected_costs: 0,
-      expected_result: 0,
-      budget_target: 0,
-      break_even_point: overrideBreakEven !== null ? overrideBreakEven : 0,
-      actual_turnover: 0,
-      actual_costs: 0,
-    }
-  })
-
-  // Calculate totals for summary cards (only from months with data)
-  // For total result, we need to subtract break_even_point from monthly costs
-  // Use override break-even if provided
-  const totals = data.reduce(
-    (acc, item) => {
-      // Calculate monthly result accounting for break-even point (use override if provided)
-      const breakEvenToUse = overrideBreakEven !== null ? overrideBreakEven : (item.break_even_point || 0)
-      const monthlyResult = (item.expected_turnover || 0) - (item.expected_costs || 0) - breakEvenToUse
-      
-      return {
-        totalTurnover: acc.totalTurnover + (item.expected_turnover || 0),
-        totalCosts: acc.totalCosts + (item.expected_costs || 0),
-        totalResult: acc.totalResult + monthlyResult,
-        totalBurnRate: acc.totalBurnRate + (item.expected_costs || 0) + breakEvenToUse, // Total costs including break-even
-      }
-    },
-    { totalTurnover: 0, totalCosts: 0, totalResult: 0, totalBurnRate: 0 }
-  )
-
-  // Get break-even point (should be the same for all months, use first available)
-  // Use override value if provided, otherwise use data from database
-  const breakEvenPoint = overrideBreakEven !== null ? overrideBreakEven : (data.length > 0 ? (data[0].break_even_point || 0) : 0)
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload
-      const expectedResult = (data.expected_result || 0) - (data.break_even_point || 0)
-      
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="text-sm font-medium text-gray-900 mb-2">
-            {data.month_name}
-          </p>
-          {payload.map((entry: any, index: number) => {
-            if (entry.dataKey === 'expected_result') {
-              return (
-                <p key={index} className="text-sm font-semibold text-gray-700">
-                  <span className="font-medium">Forventet Dækningsbidrag:</span> {formatCurrency(entry.value)}
-                </p>
-              )
-            } else if (entry.dataKey === 'budget_target') {
-              return (
-                <p key={index} className="text-sm" style={{ color: '#3b82f6' }}>
-                  <span className="font-medium">Budget:</span> {formatCurrency(entry.value)}
-                </p>
-              )
-            } else if (entry.dataKey === 'break_even_point') {
-              return (
-                <p key={index} className="text-sm" style={{ color: '#ef4444' }}>
-                  <span className="font-medium">Break Even:</span> {formatCurrency(entry.value)}
-                </p>
-              )
-            }
-            return null
-          })}
-          {/* Add calculated expected result line */}
-          <p className="text-sm font-semibold mt-2 pt-2 border-t border-gray-200">
-            <span className="font-medium">Forventet Resultat:</span>{' '}
-            <span className={expectedResult >= 0 ? 'text-green-600' : 'text-red-600'}>
-              {formatCurrency(expectedResult)}
-            </span>
-          </p>
-        </div>
-      )
-    }
-    return null
-  }
-
-  // Prepare chart data
-  const chartData = completeData
-
-  // Loading skeleton
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
-        <div className="mb-6">
-          <div className="h-8 bg-gray-200 rounded w-64 animate-pulse mb-2"></div>
-          <div className="h-5 bg-gray-200 rounded w-96 animate-pulse"></div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-gray-50 rounded-lg border border-gray-200 p-6">
-              <div className="h-20 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-          ))}
-        </div>
-        <div className="h-96 bg-gray-200 rounded animate-pulse"></div>
-      </div>
-    )
-  }
-
-  // Error state
-  if (error || !data || data.length === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Finansiel Roadmap 2026</h2>
-        <p className="text-gray-600 mb-4">
-          {error || 'Ingen roadmap data tilgængelig'}
-        </p>
-      </div>
-    )
-  }
+function MonthlyTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: Array<{ payload: MonthlyOverviewChartRow }>
+}) {
+  if (!active || !payload?.length) return null
+  const row = payload[0].payload
 
   return (
-    <div className="space-y-6">
-      {/* Chart */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
-        <div className="mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Årsoverblik for 2026</h3>
-          <p className="mt-1 text-sm text-gray-600">Forventet resultat, budgetmål og break-even punkt</p>
+    <div className="rounded-xl border border-neutral-200/90 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm max-w-xs">
+      <p className="text-sm font-semibold text-neutral-900 mb-3">{row.month_label}</p>
+      <div className="space-y-2 text-xs text-neutral-600">
+        <div className="font-medium text-neutral-800 border-b border-neutral-100 pb-2 mb-2">Virksomhed (faktisk)</div>
+        <div className="flex justify-between gap-6">
+          <span>Omsætning</span>
+          <span className="font-medium text-neutral-900 tabular-nums">{formatCurrency(row.actual_revenue)}</span>
         </div>
-        <div className="h-[375px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={chartData}
-              margin={{ top: 20, right: 30, left: 10, bottom: 60 }}
-              barCategoryGap="15%"
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis 
-                dataKey="month_short" 
-                stroke="#6b7280"
-                fontSize={12}
-                angle={-45}
-                textAnchor="end"
-                height={60}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <defs>
-                <linearGradient id="colorPositive" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.6}/>
-                </linearGradient>
-                <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.6}/>
-                </linearGradient>
-              </defs>
-              <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="2 2" />
-              
-              {/* Bar chart for expected result */}
-              <Bar 
-                dataKey="expected_result"
-                shape={(props: any) => {
-                  const { x, y, width, height, payload } = props
-                  const value = payload?.expected_result || 0
-                  const breakEven = payload?.break_even_point || 0
-                  
-                  // Color based on break-even comparison, not just positive/negative
-                  const isAboveBreakEven = value >= breakEven
-                  
-                  // For positive bars: y is at the top, height goes down
-                  // For negative bars: y is at zero line, height is negative (goes up)
-                  const isPositive = value >= 0
-                  const barHeight = Math.abs(height)
-                  const barY = isPositive ? y : y - barHeight
-                  
-                  // Radius: [topLeft, topRight, bottomRight, bottomLeft]
-                  const radius = isPositive ? [6, 6, 0, 0] : [0, 0, 6, 6]
-                  const [topLeft, topRight, bottomRight, bottomLeft] = radius
-                  
-                  // Create rounded rectangle path
-                  const path = `
-                    M ${x + topLeft},${barY}
-                    L ${x + width - topRight},${barY}
-                    Q ${x + width},${barY} ${x + width},${barY + topRight}
-                    L ${x + width},${barY + barHeight - bottomRight}
-                    Q ${x + width},${barY + barHeight} ${x + width - bottomRight},${barY + barHeight}
-                    L ${x + bottomLeft},${barY + barHeight}
-                    Q ${x},${barY + barHeight} ${x},${barY + barHeight - bottomLeft}
-                    L ${x},${barY + topLeft}
-                    Q ${x},${barY} ${x + topLeft},${barY}
-                    Z
-                  `
-                  
-                  const fill = isAboveBreakEven ? "url(#colorPositive)" : "url(#colorNegative)"
-                  return <path d={path} fill={fill} />
-                }}
-              >
-                {chartData.map((entry, index) => {
-                  const value = entry.expected_result || 0
-                  const breakEven = entry.break_even_point || 0
-                  const isAboveBreakEven = value >= breakEven
-                  const fill = isAboveBreakEven ? "url(#colorPositive)" : "url(#colorNegative)"
-                  return <Cell key={`cell-${index}`} fill={fill} />
-                })}
-              </Bar>
-              
-              {/* Lines for budget and break-even */}
-              <Line 
-                type="monotone" 
-                dataKey="budget_target" 
-                stroke="#22c55e" 
-                strokeWidth={1.5}
-                strokeDasharray="3 3"
-                dot={false}
-                activeDot={{ r: 5, fill: '#22c55e' }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="break_even_point" 
-                stroke="#ef4444" 
-                strokeWidth={1.5}
-                strokeDasharray="3 3"
-                dot={false}
-                activeDot={{ r: 5, fill: '#ef4444' }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+        <div className="flex justify-between gap-6">
+          <span>Omkostninger</span>
+          <span className="font-medium text-neutral-900 tabular-nums">{formatCurrency(row.actual_costs)}</span>
         </div>
-
-        {/* Summary Cards */}
-        <div className="mt-8">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">Forventede foreløbige tal for 2026</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Forventet Omsætning */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
-            <p className="text-xs font-medium text-gray-600 mb-2">Omsætning</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {formatNumber(totals.totalTurnover / 1000000)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">mio. kr.</p>
-          </div>
-
-          {/* Forventede Variable Udgifter */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
-            <p className="text-xs font-medium text-gray-600 mb-2">Projekt udgifter</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {formatNumber(totals.totalCosts / 1000000)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">mio. kr.</p>
-          </div>
-
-          {/* Forventet burn-rate */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
-            <p className="text-xs font-medium text-gray-600 mb-2">
-              Faste omkostninger {overrideBreakEven !== null && <span className="text-blue-600">(scenarie)</span>}
-            </p>
-            <p className="text-2xl font-bold text-gray-900">
-              {formatNumber(breakEvenPoint / 1000000)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">mio. kr. / mdr.</p>
-            {overrideBreakEven !== null && data.length > 0 && data[0].break_even_point !== overrideBreakEven && (
-              <p className="text-[10px] text-gray-400 mt-1 line-through">
-                Faktisk: {formatNumber((data[0].break_even_point || 0) / 1000000)}
-              </p>
-            )}
-          </div>
-
-          {/* Forventet Resultat */}
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
-            <p className="text-xs font-medium text-gray-600 mb-2">Forventet Resultat</p>
-            <p className={`text-2xl font-bold ${
-              totals.totalResult >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {formatNumber(totals.totalResult / 1000000)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">mio. kr.</p>
-          </div>
-          </div>
+        <div className="flex justify-between gap-6">
+          <span>Resultat</span>
+          <span
+            className={`font-semibold tabular-nums ${row.actual_result >= 0 ? 'text-emerald-700' : 'text-red-600'}`}
+          >
+            {formatCurrency(row.actual_result)}
+          </span>
         </div>
+        <div className="font-medium text-neutral-800 border-b border-neutral-100 pb-2 mb-2 pt-2">Projekt-pipeline</div>
+        <div className="flex justify-between gap-6">
+          <span>Forv. omsætning</span>
+          <span className="font-medium text-neutral-700 tabular-nums">{formatCurrency(row.pipeline_revenue)}</span>
+        </div>
+        <div className="flex justify-between gap-6">
+          <span>Forv. omkostning</span>
+          <span className="font-medium text-neutral-700 tabular-nums">{formatCurrency(row.pipeline_cost)}</span>
+        </div>
+        <div className="flex justify-between gap-6">
+          <span>Forv. resultat</span>
+          <span
+            className={`font-semibold tabular-nums ${row.pipeline_expected_result >= 0 ? 'text-sky-700' : 'text-amber-700'}`}
+          >
+            {formatCurrency(row.pipeline_expected_result)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-6 pt-1">
+          <span>Antal projekter</span>
+          <span className="font-medium text-neutral-900">{row.project_count}</span>
+        </div>
+        {row.projects.length > 0 && (
+          <div className="pt-2 border-t border-neutral-100">
+            <p className="text-[10px] uppercase tracking-wide text-neutral-400 mb-1.5">Projekter</p>
+            <ul className="space-y-1">
+              {row.projects.map((p, i) => (
+                <li key={`${p.name}-${i}`} className="text-neutral-700">
+                  {p.url ? (
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-700 hover:underline"
+                    >
+                      {p.name}
+                    </a>
+                  ) : (
+                    <span>{p.name}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
+export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
+  const [overview, setOverview] = useState<DashboardMonthlyOverviewData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await fetchDashboardMonthlyOverview()
+        setOverview(data)
+      } catch (e) {
+        console.error(e)
+        setError('Kunne ikke indlæse årsoverblik')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const chartRows = useMemo(() => (overview ? buildMonthlyOverviewChartRows(overview) : []), [overview])
+
+  const tooltipContent = useCallback((props: { active?: boolean; payload?: unknown }) => {
+    const payload = props.payload as Array<{ payload: MonthlyOverviewChartRow }> | undefined
+    return <MonthlyTooltip active={props.active} payload={payload} />
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-neutral-200/80 bg-white p-6 lg:p-8 shadow-sm">
+        <div className="h-7 w-48 rounded-md bg-neutral-100 animate-pulse mb-2" />
+        <div className="h-4 w-72 rounded-md bg-neutral-100 animate-pulse mb-8" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-24 rounded-2xl bg-neutral-100 animate-pulse" />
+          ))}
+        </div>
+        <div className="h-[400px] rounded-xl bg-neutral-100 animate-pulse" />
+      </div>
+    )
+  }
+
+  if (error || !overview) {
+    return (
+      <div className="rounded-2xl border border-neutral-200/80 bg-white p-8 lg:p-10 shadow-sm text-center">
+        <h2 className="text-lg font-semibold text-neutral-900 mb-2">Årsoverblik 2026</h2>
+        <p className="text-sm text-neutral-500 max-w-md mx-auto">
+          {error ||
+            'Ingen data i cachen endnu. Tjek at rækken findes i he_dashboard_finance_cache (main_dashboard / 2026 / dashboard_monthly_overview).'}
+        </p>
+      </div>
+    )
+  }
+
+  const { totals } = overview
+  const t = totals.company_actuals
+  const p = totals.project_pipeline
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-neutral-200/80 bg-white p-6 lg:p-8 shadow-sm">
+        <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-xl font-semibold tracking-tight text-neutral-900">Årsoverblik for 2026</h3>
+            <p className="mt-1 text-sm text-neutral-500 max-w-xl">
+              Faktiske bogførte tal for virksomheden og forventet projektøkonomi i pipelinen — adskilt visuelt.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1">
+              <span className="h-2 w-2 rounded-sm bg-neutral-800" />
+              Faktisk
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1">
+              <span className="h-2 w-2 rounded-sm bg-neutral-300 ring-1 ring-neutral-400/40" />
+              Pipeline
+            </span>
+          </div>
+        </div>
+
+        {/* KPI row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="rounded-2xl border border-neutral-200/60 bg-neutral-50/50 p-5">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Faktisk omsætning i år</p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-neutral-900 tabular-nums">
+              {formatCurrency(t.revenue)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200/60 bg-neutral-50/50 p-5">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Faktisk resultat i år</p>
+            <p
+              className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${
+                t.result >= 0 ? 'text-emerald-700' : 'text-red-600'
+              }`}
+            >
+              {formatCurrency(t.result)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200/60 bg-white p-5">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Pipeline omsætning</p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-neutral-800 tabular-nums">
+              {formatCurrency(p.expected_revenue)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200/60 bg-white p-5">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">
+              Pipeline forventet resultat
+            </p>
+            <p
+              className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${
+                p.expected_result >= 0 ? 'text-sky-700' : 'text-amber-700'
+              }`}
+            >
+              {formatCurrency(p.expected_result)}
+            </p>
+          </div>
+        </div>
+
+        {/* Chart */}
+        <div className="rounded-xl border border-neutral-100 bg-neutral-50/30 p-4 lg:p-6">
+          <div className="h-[min(420px,55vh)] w-full min-h-[320px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartRows} margin={{ top: 16, right: 8, left: 0, bottom: 8 }} barGap={4}>
+                <CartesianGrid strokeDasharray="3 6" stroke="#e5e5e5" vertical={false} />
+                <XAxis
+                  dataKey="month_short"
+                  tick={{ fill: '#737373', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e5e5' }}
+                />
+                <YAxis
+                  yAxisId="revenue"
+                  tickFormatter={formatAxisTick}
+                  tick={{ fill: '#a3a3a3', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={44}
+                />
+                <YAxis
+                  yAxisId="result"
+                  orientation="right"
+                  tickFormatter={formatAxisTick}
+                  tick={{ fill: '#a3a3a3', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={44}
+                />
+                <Tooltip content={tooltipContent} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
+                <Legend
+                  wrapperStyle={{ paddingTop: 20 }}
+                  formatter={(value) => <span className="text-xs text-neutral-600">{value}</span>}
+                />
+                <ReferenceLine yAxisId="result" y={0} stroke="#d4d4d4" strokeWidth={1} />
+                <Bar
+                  yAxisId="revenue"
+                  dataKey="actual_revenue"
+                  name="Faktisk omsætning"
+                  fill="#262626"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={36}
+                />
+                <Bar
+                  yAxisId="revenue"
+                  dataKey="pipeline_revenue"
+                  name="Pipeline omsætning"
+                  fill="#d4d4d8"
+                  fillOpacity={0.85}
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={36}
+                  stroke="#a3a3a8"
+                  strokeWidth={0.5}
+                  strokeDasharray="4 3"
+                />
+                <Line
+                  yAxisId="result"
+                  type="monotone"
+                  dataKey="actual_result"
+                  name="Faktisk resultat"
+                  stroke="#0d9488"
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: '#0d9488', strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Line
+                  yAxisId="result"
+                  type="monotone"
+                  dataKey="pipeline_expected_result"
+                  name="Pipeline forventet resultat"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  strokeDasharray="6 5"
+                  dot={{ r: 2, fill: '#94a3b8', strokeWidth: 0 }}
+                  activeDot={{ r: 4 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <p className="mt-6 text-xs leading-relaxed text-neutral-500 max-w-3xl">
+          Faktiske tal viser hele virksomhedens bogførte økonomi. Pipeline viser forventet projektøkonomi for kommende
+          opgaver og inkluderer ikke fuld overhead som løn, husleje og øvrige faste omkostninger.
+        </p>
+      </div>
+    </div>
+  )
+}

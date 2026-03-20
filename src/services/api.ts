@@ -1,4 +1,8 @@
 import { supabase } from '../lib/supabase'
+import {
+  parseDashboardMonthlyOverviewData,
+  type DashboardMonthlyOverviewData,
+} from '../lib/dashboardMonthlyOverviewTransform'
 
 /**
  * Monthly history data structure from finance_history_years.data
@@ -52,6 +56,13 @@ export interface FinanceSnapshot {
   history?: MonthlyHistory[]
 }
 
+export type {
+  DashboardFinanceCacheRow,
+  DashboardMonthlyMonth,
+  DashboardMonthlyOverviewData,
+  DashboardPipelineProject,
+} from '../lib/dashboardMonthlyOverviewTransform'
+
 /**
  * Finance roadmap data structure from finance_roadmap_2026 table
  */
@@ -96,6 +107,44 @@ export async function fetchFinanceRoadmap2026(): Promise<FinanceRoadmap2026[]> {
   } catch (error) {
     console.error('Failed to fetch finance roadmap 2026:', error)
     return []
+  }
+}
+
+const DASHBOARD_CACHE_KEY = 'main_dashboard'
+const DASHBOARD_CACHE_YEAR = 2026
+const DASHBOARD_CACHE_TYPE = 'dashboard_monthly_overview'
+
+/**
+ * Fetches parsed monthly overview for the main finance dashboard from cache table.
+ */
+export async function fetchDashboardMonthlyOverview(): Promise<DashboardMonthlyOverviewData | null> {
+  if (!supabase) {
+    console.error('Supabase client not configured')
+    return null
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('he_dashboard_finance_cache')
+      .select('data')
+      .eq('cache_key', DASHBOARD_CACHE_KEY)
+      .eq('year', DASHBOARD_CACHE_YEAR)
+      .eq('cache_type', DASHBOARD_CACHE_TYPE)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error fetching he_dashboard_finance_cache:', error)
+      return null
+    }
+
+    if (!data || data.data === null || data.data === undefined) {
+      return null
+    }
+
+    return parseDashboardMonthlyOverviewData(data.data)
+  } catch (e) {
+    console.error('Failed to fetch dashboard monthly overview:', e)
+    return null
   }
 }
 
