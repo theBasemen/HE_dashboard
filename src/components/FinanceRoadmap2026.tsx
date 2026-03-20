@@ -19,15 +19,15 @@ import {
   type MonthlyOverviewChartRow,
 } from '../lib/dashboardMonthlyOverviewTransform'
 
-/** Align with app convention (e.g. ProjectStatistics): green / red for result sign */
+/** Align with app convention (e.g. ProjectStatistics): green / red where sign matters (KPI, månedligt i tooltip) */
 const RESULT_GREEN = '#10b981'
 const RESULT_RED = '#ef4444'
+/** Én rolig grøn til den akkumulerede kurve — kontinuitet uden farveskift */
+const ACCUMULATED_LINE_GREEN = '#0d9488'
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'] as const
 
 type ChartRowVisual = MonthlyOverviewChartRow & {
-  cumulative_result_green: number | null
-  cumulative_result_red: number | null
   hasPipeline: boolean
 }
 
@@ -64,66 +64,65 @@ function MonthlyTooltip({
   const row = payload[0].payload
 
   return (
-    <div className="rounded-xl border border-neutral-200/90 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm max-w-xs">
-      <p className="text-sm font-semibold text-neutral-900 mb-3">{row.month_label}</p>
-      <div className="space-y-2 text-xs text-neutral-600">
-        <div className="font-medium text-neutral-800 border-b border-neutral-100 pb-2 mb-2">Faktisk</div>
-        <div className="flex justify-between gap-6">
-          <span>Omsætning</span>
+    <div className="rounded-2xl border border-neutral-200/80 bg-white px-4 py-3.5 shadow-md shadow-neutral-900/5 max-w-xs">
+      <p className="text-[13px] font-medium text-neutral-900 tracking-tight mb-3">{row.month_label}</p>
+      <div className="space-y-1.5 text-[12px] text-neutral-600 leading-snug">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-neutral-400 border-b border-neutral-100 pb-2 mb-2">
+          Faktisk
+        </div>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Omsætning</span>
           <span className="font-medium text-neutral-900 tabular-nums">{formatCurrency(row.actual_revenue)}</span>
         </div>
-        <div className="flex justify-between gap-6">
-          <span>Omkostninger</span>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Omkostninger</span>
           <span className="font-medium text-neutral-900 tabular-nums">{formatCurrency(row.actual_costs)}</span>
         </div>
-        <div className="flex justify-between gap-6">
-          <span>Resultat for måneden</span>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Resultat for måneden</span>
           <span
-            className="font-semibold tabular-nums"
+            className="font-medium tabular-nums"
             style={{ color: row.actual_result >= 0 ? RESULT_GREEN : RESULT_RED }}
           >
             {formatCurrency(row.actual_result)}
           </span>
         </div>
-        <div className="flex justify-between gap-6">
-          <span>Akkumuleret resultat</span>
-          <span
-            className="font-semibold tabular-nums"
-            style={{ color: row.cumulative_result >= 0 ? RESULT_GREEN : RESULT_RED }}
-          >
-            {formatCurrency(row.cumulative_result)}
-          </span>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Akkumuleret resultat</span>
+          <span className="font-medium tabular-nums text-neutral-800">{formatCurrency(row.cumulative_result)}</span>
         </div>
-        <div className="font-medium text-neutral-800 border-b border-neutral-100 pb-2 mb-2 pt-2">Pipeline</div>
-        <div className="flex justify-between gap-6">
-          <span>Forventet omsætning</span>
-          <span className="font-medium text-neutral-600 tabular-nums">{formatCurrency(row.pipeline_revenue)}</span>
+        <div className="text-[11px] font-medium uppercase tracking-wide text-neutral-400 border-b border-neutral-100 pb-2 mb-2 pt-3">
+          Pipeline
         </div>
-        <div className="flex justify-between gap-6">
-          <span>Forventede omkostninger</span>
-          <span className="font-medium text-neutral-600 tabular-nums">{formatCurrency(row.pipeline_cost)}</span>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Forventet omsætning</span>
+          <span className="font-medium text-neutral-700 tabular-nums">{formatCurrency(row.pipeline_revenue)}</span>
         </div>
-        <div className="flex justify-between gap-6">
-          <span>Forventet resultat</span>
-          <span className="font-semibold tabular-nums text-neutral-600">{formatCurrency(row.pipeline_expected_result)}</span>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Forventede omkostninger</span>
+          <span className="font-medium text-neutral-700 tabular-nums">{formatCurrency(row.pipeline_cost)}</span>
         </div>
-        <div className="flex justify-between gap-6 pt-1">
-          <span>Antal projekter</span>
-          <span className="font-medium text-neutral-800">{row.project_count}</span>
+        <div className="flex justify-between gap-8">
+          <span className="text-neutral-500">Forventet resultat</span>
+          <span className="font-medium tabular-nums text-neutral-700">{formatCurrency(row.pipeline_expected_result)}</span>
         </div>
-        <div className="pt-2 border-t border-neutral-100">
+        <div className="flex justify-between gap-8 pt-0.5">
+          <span className="text-neutral-500">Antal projekter</span>
+          <span className="font-medium text-neutral-800 tabular-nums">{row.project_count}</span>
+        </div>
+        <div className="pt-3 mt-1 border-t border-neutral-100">
           {row.projects.length > 0 ? (
             <>
-              <p className="text-[10px] uppercase tracking-wide text-neutral-400 mb-1.5">Projekter</p>
-              <ul className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-neutral-400 mb-2">Projekter</p>
+              <ul className="space-y-1.5">
                 {row.projects.map((p, i) => (
-                  <li key={`${p.name}-${i}`} className="text-neutral-600">
+                  <li key={`${p.name}-${i}`} className="text-neutral-600 text-[12px]">
                     {p.url ? (
                       <a
                         href={p.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-neutral-700 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-900"
+                        className="text-neutral-700 underline decoration-neutral-200 underline-offset-2 hover:text-neutral-900"
                       >
                         {p.name}
                       </a>
@@ -135,7 +134,7 @@ function MonthlyTooltip({
               </ul>
             </>
           ) : (
-            <p className="text-[11px] text-neutral-400 italic">Ingen pipeline projekter</p>
+            <p className="text-[12px] text-neutral-400">Ingen pipeline projekter</p>
           )}
         </div>
       </div>
@@ -176,8 +175,6 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
         row.project_count > 0
       return {
         ...row,
-        cumulative_result_green: row.cumulative_result >= 0 ? row.cumulative_result : null,
-        cumulative_result_red: row.cumulative_result < 0 ? row.cumulative_result : null,
         hasPipeline,
       }
     })
@@ -232,8 +229,9 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
         <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 className="text-xl font-semibold tracking-tight text-neutral-900">Årsoverblik for 2026</h3>
-            <p className="mt-1 text-sm text-neutral-500 max-w-xl">
-              Månedlig omsætning (faktisk og pipeline) og akkumuleret faktisk resultat på én skala — nemmere at læse.
+            <p className="mt-1.5 text-sm text-neutral-500 max-w-xl leading-relaxed">
+              Søjlerne viser månedlig aktivitet — mørke for det bogførte, lyse for det forventede fremad. Den grønne linje
+              følger virksomhedens akkumulerede resultat gennem året.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500">
@@ -247,8 +245,8 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1">
               <span
-                className="h-2 w-2 rounded-full ring-1 ring-black/10"
-                style={{ backgroundColor: RESULT_GREEN }}
+                className="h-2 w-2 rounded-full ring-1 ring-black/5"
+                style={{ backgroundColor: ACCUMULATED_LINE_GREEN }}
               />
               Akkumuleret resultat
             </span>
@@ -297,14 +295,14 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                 margin={{ top: 20, right: 18, left: 6, bottom: 8 }}
                 barGap={4}
               >
-                <CartesianGrid strokeDasharray="3 6" stroke="#e5e5e5" vertical={false} />
+                <CartesianGrid strokeDasharray="3 8" stroke="#f0f0f0" vertical={false} />
                 {currentMonthTick ? (
                   <ReferenceLine
                     x={currentMonthTick}
-                    stroke="#a8a29e"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
-                    strokeOpacity={0.65}
+                    stroke="#d4d4d4"
+                    strokeWidth={0.75}
+                    strokeDasharray="2 6"
+                    strokeOpacity={0.55}
                   />
                 ) : null}
                 <XAxis
@@ -324,15 +322,21 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                     angle: -90,
                     position: 'insideLeft',
                     offset: 4,
-                    style: { fill: '#a3a3a3', fontSize: 10, fontWeight: 500 },
+                    style: { fill: '#a8a8a8', fontSize: 10, fontWeight: 500 },
                   }}
                 />
-                <Tooltip content={tooltipContent} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
+                <Tooltip content={tooltipContent} cursor={{ fill: 'rgba(0,0,0,0.025)' }} />
                 <Legend
                   wrapperStyle={{ paddingTop: 20 }}
-                  formatter={(value) => <span className="text-xs text-neutral-600">{value}</span>}
+                  formatter={(value) => <span className="text-xs text-neutral-500">{value}</span>}
                 />
-                <ReferenceLine y={0} stroke="#d4d4d4" strokeWidth={1} />
+                <ReferenceLine
+                  y={0}
+                  stroke="#e5e5e5"
+                  strokeWidth={0.75}
+                  strokeOpacity={1}
+                  ifOverflow="extendDomain"
+                />
                 <Bar
                   dataKey="actual_revenue"
                   name="Faktisk omsætning"
@@ -355,18 +359,20 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                     return (
                       <Cell
                         key={`pipe-rev-${index}`}
-                        fill="#a3a3a3"
-                        fillOpacity={emphasis ? 0.52 : 0.22}
+                        fill="#9ca3af"
+                        fillOpacity={emphasis ? 0.62 : 0.3}
                       />
                     )
                   })}
                 </Bar>
                 <Line
                   type="linear"
-                  dataKey="cumulative_result_green"
+                  dataKey="cumulative_result"
                   name="Akkumuleret resultat"
-                  stroke={RESULT_GREEN}
-                  strokeWidth={2.25}
+                  stroke={ACCUMULATED_LINE_GREEN}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   connectNulls
                   dot={(props: {
                     cx?: number
@@ -375,55 +381,23 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
                     payload?: ChartRowVisual
                   }) => {
                     const { cx, cy, index, payload } = props
-                    if (cx == null || cy == null) return <g key={`cg-${index}`} />
+                    if (cx == null || cy == null) return <g key={`acc-${index}`} />
                     const isNow = currentMonthTick && payload?.month_short === currentMonthTick
-                    const r = isNow ? 4.5 : 3
+                    const r = isNow ? 3.25 : 2.5
                     return (
                       <circle
-                        key={`cg-${index}`}
+                        key={`acc-${index}`}
                         cx={cx}
                         cy={cy}
                         r={r}
-                        fill={RESULT_GREEN}
-                        stroke="#fff"
-                        strokeWidth={1.5}
+                        fill={ACCUMULATED_LINE_GREEN}
+                        fillOpacity={0.95}
+                        stroke="#fafafa"
+                        strokeWidth={1}
                       />
                     )
                   }}
-                  activeDot={{ r: 5.5, fill: RESULT_GREEN, stroke: '#fff', strokeWidth: 2 }}
-                  isAnimationActive={false}
-                />
-                <Line
-                  type="linear"
-                  dataKey="cumulative_result_red"
-                  name="Akkumuleret resultat (negativ)"
-                  stroke={RESULT_RED}
-                  strokeWidth={2.25}
-                  connectNulls
-                  dot={(props: {
-                    cx?: number
-                    cy?: number
-                    index?: number
-                    payload?: ChartRowVisual
-                  }) => {
-                    const { cx, cy, index, payload } = props
-                    if (cx == null || cy == null) return <g key={`cr-${index}`} />
-                    const isNow = currentMonthTick && payload?.month_short === currentMonthTick
-                    const r = isNow ? 4.5 : 3
-                    return (
-                      <circle
-                        key={`cr-${index}`}
-                        cx={cx}
-                        cy={cy}
-                        r={r}
-                        fill={RESULT_RED}
-                        stroke="#fff"
-                        strokeWidth={1.5}
-                      />
-                    )
-                  }}
-                  activeDot={{ r: 5.5, fill: RESULT_RED, stroke: '#fff', strokeWidth: 2 }}
-                  legendType="none"
+                  activeDot={{ r: 4, fill: ACCUMULATED_LINE_GREEN, stroke: '#fff', strokeWidth: 1.5 }}
                   isAnimationActive={false}
                 />
               </ComposedChart>
@@ -431,7 +405,7 @@ export default function FinanceRoadmap2026(_props: FinanceRoadmap2026Props) {
           </div>
         </div>
 
-        <p className="mt-6 text-xs leading-relaxed text-neutral-500 max-w-3xl">
+        <p className="mt-8 max-w-3xl text-sm leading-[1.7] text-neutral-500">
           Faktiske tal viser hele virksomhedens bogførte økonomi. Pipeline viser forventet projektøkonomi for kommende
           opgaver og inkluderer ikke fuld overhead som løn, husleje og øvrige faste omkostninger.
         </p>
