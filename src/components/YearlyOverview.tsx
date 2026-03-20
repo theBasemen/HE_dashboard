@@ -1,6 +1,4 @@
-import { useState } from 'react'
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
-import { ChevronDown, ChevronUp } from 'lucide-react'
 import { MonthlyHistory } from '../services/api'
 
 interface YearlyOverviewProps {
@@ -8,7 +6,6 @@ interface YearlyOverviewProps {
 }
 
 export default function YearlyOverview({ history }: YearlyOverviewProps) {
-  const [isTableExpanded, setIsTableExpanded] = useState(false)
   const formatCurrency = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '0 kr.'
     return new Intl.NumberFormat('da-DK', {
@@ -17,20 +14,6 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
-  }
-
-  const formatNumber = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return '0'
-    return new Intl.NumberFormat('da-DK', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 1,
-    }).format(value)
-  }
-
-  // Calculate coverage ratio (Dækningsgrad): (Revenue - Variable Costs) / Revenue * 100
-  const calculateCoverageRatio = (revenue: number, variableCosts: number): number => {
-    if (revenue === 0) return 0
-    return ((revenue - variableCosts) / revenue) * 100
   }
 
 
@@ -141,56 +124,6 @@ export default function YearlyOverview({ history }: YearlyOverviewProps) {
           </ResponsiveContainer>
         </div>
 
-        {/* Monthly Table */}
-        <div className="mt-8">
-          <button
-            onClick={() => setIsTableExpanded(!isTableExpanded)}
-            className="flex items-center justify-between w-full text-left mb-4 hover:opacity-80 transition-opacity"
-          >
-            <h3 className="text-xl font-bold text-gray-900">Månedlig Detaljeret Oversigt</h3>
-            {isTableExpanded ? (
-              <ChevronUp className="h-5 w-5 text-gray-600" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-gray-600" />
-            )}
-          </button>
-          
-          {isTableExpanded && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Måned</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Omsætning</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Var. Omk.</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Faste Omk.</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Dækningsgrad</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Resultat</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((entry, index) => {
-                    const coverageRatio = calculateCoverageRatio(entry.revenue, entry.variable_costs)
-                    return (
-                      <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-4 text-sm text-gray-900">{entry.month}</td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-900">{formatCurrency(entry.revenue)}</td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-700">{formatCurrency(entry.variable_costs)}</td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-700">{formatCurrency(entry.fixed_costs)}</td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-700">{formatNumber(coverageRatio)}%</td>
-                        <td className={`py-3 px-4 text-sm text-right font-semibold ${
-                          entry.result >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {formatCurrency(entry.result)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Calculator, X, RefreshCw, Loader2 } from 'lucide-react'
 import { fetchFinanceData, FinanceSnapshot, fetchFinanceRoadmap2026, FinanceRoadmap2026 } from '../services/api'
-import YearlyOverview from '../components/YearlyOverview'
 import FinanceRoadmap2026Component from '../components/FinanceRoadmap2026'
 import ProjectStatistics from '../components/ProjectStatistics'
 
@@ -808,8 +807,7 @@ export default function FinancePage() {
       {/* Project Statistics */}
       <ProjectStatistics />
 
-      {/* Yearly Financial Overview */}
-      <YearlyOverview history={snapshot.history || []} />
+      {/* Yearly Financial Overview removed per UI request */}
 
       {/* Zone A: Enterprise Value (Moved to bottom, less prominent) */}
       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl shadow-sm border border-yellow-200 p-6">
