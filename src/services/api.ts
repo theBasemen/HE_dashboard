@@ -3,6 +3,10 @@ import {
   parseDashboardMonthlyOverviewData,
   type DashboardMonthlyOverviewData,
 } from '../lib/dashboardMonthlyOverviewTransform'
+import {
+  parseDashboardLiquiditySummaryData,
+  type DashboardLiquiditySummaryData,
+} from '../lib/dashboardLiquiditySummaryTransform'
 
 /**
  * Monthly history data structure from finance_history_years.data
@@ -62,6 +66,8 @@ export type {
   DashboardMonthlyOverviewData,
   DashboardPipelineProject,
 } from '../lib/dashboardMonthlyOverviewTransform'
+
+export type { DashboardLiquiditySummaryData } from '../lib/dashboardLiquiditySummaryTransform'
 
 /**
  * Finance roadmap data structure from finance_roadmap_2026 table
@@ -144,6 +150,44 @@ export async function fetchDashboardMonthlyOverview(): Promise<DashboardMonthlyO
     return parseDashboardMonthlyOverviewData(data.data)
   } catch (e) {
     console.error('Failed to fetch dashboard monthly overview:', e)
+    return null
+  }
+}
+
+const DASHBOARD_LIQUIDITY_CACHE_TYPE = 'dashboard_liquidity_summary'
+
+/**
+ * Liquidity summary from `he_dashboard_finance_cache` (main_dashboard, current calendar year).
+ */
+export async function fetchDashboardLiquiditySummary(): Promise<DashboardLiquiditySummaryData | null> {
+  if (!supabase) {
+    console.error('Supabase client not configured')
+    return null
+  }
+
+  const year = new Date().getFullYear()
+
+  try {
+    const { data, error } = await supabase
+      .from('he_dashboard_finance_cache')
+      .select('data')
+      .eq('cache_key', DASHBOARD_CACHE_KEY)
+      .eq('year', year)
+      .eq('cache_type', DASHBOARD_LIQUIDITY_CACHE_TYPE)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error fetching dashboard liquidity summary:', error)
+      return null
+    }
+
+    if (!data || data.data === null || data.data === undefined) {
+      return null
+    }
+
+    return parseDashboardLiquiditySummaryData(data.data)
+  } catch (e) {
+    console.error('Failed to fetch dashboard liquidity summary:', e)
     return null
   }
 }

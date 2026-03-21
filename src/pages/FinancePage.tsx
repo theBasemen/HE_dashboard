@@ -1,13 +1,22 @@
 import { useState, useEffect } from 'react'
-import { Award, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Calculator, X, RefreshCw, Loader2 } from 'lucide-react'
-import { fetchFinanceData, FinanceSnapshot, fetchFinanceRoadmap2026, FinanceRoadmap2026 } from '../services/api'
+import { Award, AlertCircle, CheckCircle2, Calculator, X, RefreshCw, Loader2 } from 'lucide-react'
+import {
+  fetchFinanceData,
+  FinanceSnapshot,
+  fetchFinanceRoadmap2026,
+  fetchDashboardLiquiditySummary,
+  FinanceRoadmap2026,
+  type DashboardLiquiditySummaryData,
+} from '../services/api'
 import FinanceRoadmap2026Component from '../components/FinanceRoadmap2026'
+import LiquiditySummarySection from '../components/LiquiditySummarySection'
 import ProjectStatistics from '../components/ProjectStatistics'
 
 // FinancePage component - displays executive overview and yearly financial data
 export default function FinancePage() {
   const [snapshot, setSnapshot] = useState<FinanceSnapshot | null>(null)
   const [roadmap2026, setRoadmap2026] = useState<FinanceRoadmap2026[]>([])
+  const [liquiditySummary, setLiquiditySummary] = useState<DashboardLiquiditySummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
@@ -20,9 +29,10 @@ export default function FinancePage() {
     try {
       setLoading(true)
       setError(null)
-      const [financeData, roadmapData] = await Promise.all([
+      const [financeData, roadmapData, liquidityData] = await Promise.all([
         fetchFinanceData(),
-        fetchFinanceRoadmap2026()
+        fetchFinanceRoadmap2026(),
+        fetchDashboardLiquiditySummary(),
       ])
       if (!financeData) {
         setError('Ingen data tilgængelig')
@@ -30,6 +40,7 @@ export default function FinancePage() {
         setSnapshot(financeData)
       }
       setRoadmap2026(roadmapData)
+      setLiquiditySummary(liquidityData)
     } catch (err) {
       console.error('Failed to fetch finance data:', err)
       setError('Fejl ved indlæsning af data')
@@ -351,96 +362,8 @@ export default function FinancePage() {
 
       {/* Zone B & C: Liquidity Engine and Operational Health Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-        {/* Zone B: Liquidity Engine (Net Liquidity) */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col h-full overflow-visible">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Likviditetsberedskab</h2>
-          </div>
-
-          {/* Calculation Layout */}
-          <div className="space-y-3 mb-4 flex-1 relative overflow-visible pb-8">
-            {/* Likviditet (Bank) */}
-            <div className="group relative flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 min-h-[52px]">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
-                <span className="text-xs text-gray-700 font-medium">Likviditet</span>
-              </div>
-              <span className="text-xl font-bold text-green-700">
-                {formatCurrency(snapshot.cash_on_hand)}
-              </span>
-              {/* Tooltip */}
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap pointer-events-none">
-                <div className="font-semibold mb-1">Likviditet</div>
-                <div className="text-gray-300">Kontant: {formatCurrency(snapshot.cash_on_hand)}</div>
-                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
-            </div>
-
-            {/* Debitorer */}
-            <div className="group relative flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 min-h-[52px]">
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
-                <span className="text-xs text-gray-700 font-medium">Debitorer</span>
-              </div>
-              <span className="text-xl font-bold text-green-700">
-                + {formatCurrency(snapshot.receivables)}
-              </span>
-              {/* Tooltip */}
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 bg-gray-900 text-white text-xs rounded px-3 py-2 whitespace-nowrap pointer-events-none">
-                <div className="font-semibold mb-1">Debitorer</div>
-                <div className="text-gray-300">Udestående: {formatCurrency(snapshot.receivables)}</div>
-                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
-            </div>
-
-            {/* Kortfristet Gæld & Moms */}
-            <div className="group relative flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200 min-h-[52px]">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                <span className="text-xs text-gray-700 font-medium">Gæld & Moms</span>
-              </div>
-              <span className="text-xl font-bold text-red-700">
-                - {formatCurrency((snapshot.short_term_debt || 0) + (snapshot.vat_due || 0))}
-              </span>
-              {/* Tooltip */}
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 bg-gray-900 text-white text-xs rounded px-3 py-2 pointer-events-none min-w-[200px]">
-                <div className="font-semibold mb-2">Gæld & Moms</div>
-                <div className="space-y-1 text-gray-300">
-                  <div className="flex justify-between">
-                    <span>Kortfristet gæld:</span>
-                    <span className="ml-2">{formatCurrency(snapshot.short_term_debt || 0)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Moms skyldig:</span>
-                    <span className="ml-2">{formatCurrency(snapshot.vat_due || 0)}</span>
-                  </div>
-                  <div className="border-t border-gray-700 pt-1 mt-1 flex justify-between font-semibold">
-                    <span>Total:</span>
-                    <span className="ml-2">{formatCurrency((snapshot.short_term_debt || 0) + (snapshot.vat_due || 0))}</span>
-                  </div>
-                </div>
-                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-300 my-1"></div>
-
-            {/* Net Liquidity Result */}
-            <div className={`flex items-center justify-between p-3 rounded-lg border-2 min-h-[52px] ${
-              netLiquidity >= 0 
-                ? 'bg-green-50 border-green-300' 
-                : 'bg-red-50 border-red-300'
-            }`}>
-              <span className="text-xs font-medium text-gray-700">Netto</span>
-              <span className={`text-xl font-bold ${
-                netLiquidity >= 0 ? 'text-green-700' : 'text-red-700'
-              }`}>
-                {formatCurrency(netLiquidity)}
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Zone B: Likviditet (cache: dashboard_liquidity_summary) */}
+        <LiquiditySummarySection data={liquiditySummary} />
 
         {/* Zone C: Operational Health (KPI Grid) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col h-full overflow-visible">
